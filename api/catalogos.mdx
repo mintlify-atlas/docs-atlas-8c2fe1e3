@@ -1,0 +1,225 @@
+---
+title: 'Catalogs (Catálogos)'
+description: 'Read-only lookup endpoints for populating dropdowns and filtering UI controls.'
+---
+
+<Info>
+  These endpoints are used to populate dropdowns and filter controls. Most require an active session. The departments endpoint is intentionally public for the login flow.
+</Info>
+
+---
+
+## GET /api/catalogos/departamentos
+
+Returns all departments ordered alphabetically. Does **not** require authentication — used before login to populate the department selector.
+
+### Request
+
+No parameters.
+
+### Response
+
+Array of department objects.
+
+<ResponseField name="id_departamento" type="number">
+  Department ID.
+</ResponseField>
+
+<ResponseField name="descripcion" type="string">
+  Department name.
+</ResponseField>
+
+### Example
+
+```bash cURL
+curl http://localhost:3001/api/catalogos/departamentos
+```
+
+```json Response
+[
+  { "id_departamento": 1, "descripcion": "Comercial" },
+  { "id_departamento": 3, "descripcion": "Finanzas" },
+  { "id_departamento": 2, "descripcion": "Logística" }
+]
+```
+
+---
+
+## GET /api/catalogos/pdvs
+
+Returns all active Points of Sale with their quota information. Requires authentication.
+
+<Note>
+  Only PDVs with `id_estado_pdv = 1` are returned. Before returning data, this endpoint ensures that PDV budget records for the current period exist (`ensureCurrentPdvBudgets`).
+</Note>
+
+### Request
+
+No query parameters. Session cookie required.
+
+### Response
+
+Array of active PDV objects, ordered by cost center code.
+
+<ResponseField name="id_pdv" type="number">PDV ID.</ResponseField>
+<ResponseField name="descripcion" type="string">Cost center code (`codigo_centro_costo`).</ResponseField>
+<ResponseField name="direccion" type="string">Physical address.</ResponseField>
+<ResponseField name="ciudad" type="string">City name.</ResponseField>
+<ResponseField name="region" type="string">Region name. Falls back to `"Sin región"` if unassigned.</ResponseField>
+<ResponseField name="proveedor" type="string">Principal supplier name. Falls back to `"Sin proveedor asignado"` if none.</ResponseField>
+<ResponseField name="cupo" type="number">Authorized quota from the PDV group (`grupo_pdvs.monto_autorizado`).</ResponseField>
+<ResponseField name="cupo_disponible" type="number">Remaining available quota. If `cupo_disponible` column does not exist on the `pdvs` table, this is equal to `cupo`.</ResponseField>
+
+### Example
+
+```bash cURL
+curl http://localhost:3001/api/catalogos/pdvs \
+  -b cookies.txt
+```
+
+```json Response
+[
+  {
+    "id_pdv": 12,
+    "descripcion": "PDV-NORTE-001",
+    "direccion": "Av. Principal 123",
+    "ciudad": "Quito",
+    "region": "Sierra Norte",
+    "proveedor": "Distribuidora Norte",
+    "cupo": 500.00,
+    "cupo_disponible": 320.00
+  }
+]
+```
+
+---
+
+## GET /api/catalogos/tipo-suministros
+
+Returns supply categories (types) available to the authenticated user's context. Requires authentication.
+
+Filtering logic:
+- If `pdv` is provided: returns only types that have at least one supply accessible for that PDV (via `v_suministros_efectivos_pdv`).
+- If `pdv` is omitted: returns only types that have at least one supply assigned to the user's department (via `departamento_suministros`).
+
+### Query parameters
+
+<ParamField query="pdv" type="number">
+  PDV ID. When provided, supply access is evaluated against the PDV rather than the department.
+</ParamField>
+
+### Response
+
+Array of supply type objects, ordered alphabetically.
+
+<ResponseField name="id_tipo_suministro" type="number">Supply type ID.</ResponseField>
+<ResponseField name="descripcion" type="string">Supply type name.</ResponseField>
+<ResponseField name="id_grupo_presupuesto" type="number">Associated budget group ID. `0` if not linked to any group.</ResponseField>
+
+### Example
+
+```bash cURL
+# For a specific PDV
+curl "http://localhost:3001/api/catalogos/tipo-suministros?pdv=12" \
+  -b cookies.txt
+
+# For the authenticated department
+curl http://localhost:3001/api/catalogos/tipo-suministros \
+  -b cookies.txt
+```
+
+```json Response
+[
+  { "id_tipo_suministro": 1, "descripcion": "Oficina", "id_grupo_presupuesto": 1 },
+  { "id_tipo_suministro": 2, "descripcion": "Limpieza", "id_grupo_presupuesto": 2 }
+]
+```
+
+---
+
+## GET /api/catalogos/suministros
+
+Returns supplies for a given type, filtered by the user's department or PDV context. Requires authentication.
+
+When a `pdv` is specified, supplies are additionally filtered to only those provided by the PDV's principal supplier (`pdvs.id_proveedor_principal`). If the PDV has no principal supplier set, no provider filter is applied.
+
+### Query parameters
+
+<ParamField query="tipo" type="number" required>
+  Supply type ID (`tipo_suministros.id_tipo_suministro`). This parameter is required.
+</ParamField>
+
+<ParamField query="pdv" type="number">
+  PDV ID. When provided, filters by PDV access and principal supplier.
+</ParamField>
+
+### Response
+
+Array of supply objects, ordered by supply name.
+
+<ResponseField name="id_suministro" type="number">Supply ID.</ResponseField>
+<ResponseField name="descripcion" type="string">Supply name.</ResponseField>
+<ResponseField name="precio" type="number">Current active price (`suministros_precios` where `fecha_vigencia_hasta IS NULL`).</ResponseField>
+<ResponseField name="proveedor" type="string">Supplier name for this price entry.</ResponseField>
+
+### Error responses
+
+| Status | Condition |
+|--------|-----------|
+| `400` | `tipo` query parameter is missing |
+
+### Example
+
+```bash cURL
+curl "http://localhost:3001/api/catalogos/suministros?tipo=1&pdv=12" \
+  -b cookies.txt
+```
+
+```json Response
+[
+  {
+    "id_suministro": 5,
+    "descripcion": "Papel A4",
+    "precio": 12.50,
+    "proveedor": "Distribuidora Norte"
+  },
+  {
+    "id_suministro": 7,
+    "descripcion": "Bolígrafos (caja 12u)",
+    "precio": 4.80,
+    "proveedor": "Distribuidora Norte"
+  }
+]
+```
+
+---
+
+## GET /api/catalogos/estados-pedido
+
+Returns all order status values. Used to populate filter dropdowns in the approvals and reports modules. Requires authentication.
+
+### Request
+
+No parameters. Session cookie required.
+
+### Response
+
+Array of order status objects, ordered alphabetically.
+
+<ResponseField name="id_estado_pedido" type="number">Status ID.</ResponseField>
+<ResponseField name="descripcion" type="string">Status name (e.g., `"Aprobado"`, `"En espera"`, `"Rechazado"`).</ResponseField>
+
+### Example
+
+```bash cURL
+curl http://localhost:3001/api/catalogos/estados-pedido \
+  -b cookies.txt
+```
+
+```json Response
+[
+  { "id_estado_pedido": 2, "descripcion": "Aprobado" },
+  { "id_estado_pedido": 1, "descripcion": "En espera" },
+  { "id_estado_pedido": 3, "descripcion": "Rechazado" }
+]
+```

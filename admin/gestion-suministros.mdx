@@ -1,0 +1,83 @@
+---
+title: "Gestión de suministros"
+description: "Administra el catálogo de suministros: crea productos, gestiona precios versionados y controla el stock por proveedor."
+---
+
+Desde esta sección puedes mantener el catálogo completo de suministros disponibles para pedidos. Cada suministro tiene un precio versionado asociado a un proveedor y un stock registrado por proveedor.
+
+## Lista de suministros
+
+El endpoint `GET /admin/supplies` devuelve todos los suministros con su precio vigente y stock actual. Puedes filtrar con los siguientes parámetros:
+
+| Parámetro | Descripción |
+| --- | --- |
+| `search` | Búsqueda parcial por nombre del suministro (`descripcion`) o nombre del proveedor |
+| `category` | Filtra por `id_tipo_suministro` |
+| `provider` | Filtra por `id_proveedor` |
+
+La respuesta incluye: `id_suministro`, `descripcion`, `categoria`, `stock`, `estado`, `proveedor`, `precio_compra` y `fecha_actualizacion`.
+
+## Campos de suministro
+
+| Campo | Tipo | Obligatorio | Notas |
+| --- | --- | --- | --- |
+| `descripcion` | string | Sí | Nombre del suministro |
+| `id_tipo_suministro` | integer | Sí | Categoría del suministro (tabla `tipo_suministros`) |
+| `stock` | integer | No | Cantidad inicial; valor por defecto: `100` |
+| `id_proveedor` | integer | Condicional | Obligatorio si se especifica `precio_compra` |
+| `precio_compra` | decimal | Condicional | Obligatorio si se especifica `id_proveedor`; no puede ser negativo |
+
+## Estado automático según stock
+
+El sistema **no permite seleccionar manualmente** el estado de disponibilidad de un suministro. El estado se deriva automáticamente del stock en cada operación de creación o actualización:
+
+| Stock | Estado asignado |
+| --- | --- |
+| `0` | No Disponible (`id_estado_suministro = 2`) |
+| `> 0` | Disponible (`id_estado_suministro = 1`) |
+
+Esto aplica tanto al campo `id_estado_suministro` de la tabla `suministros` como al registro en `suministro_proveedor_stock`.
+
+## Gestión de precios (versionado)
+
+Los precios están versionados en la tabla `suministros_precios`. El precio **vigente** es el registro donde `fecha_vigencia_hasta IS NULL`. Al actualizar el precio, el sistema llama al procedimiento almacenado `sp_actualizar_precio`, que:
+
+1. Cierra el precio anterior estableciendo su `fecha_vigencia_hasta`.
+2. Inserta un nuevo registro con el precio nuevo y `fecha_vigencia_hasta = NULL`.
+
+Esto garantiza un historial completo de cambios de precio por suministro y proveedor.
+
+## Stock por proveedor
+
+El stock no se almacena en la tabla principal `suministros` sino en `suministro_proveedor_stock`, con una fila por combinación `(id_suministro, id_proveedor)`. Al actualizar el stock, el sistema usa `INSERT ... ON DUPLICATE KEY UPDATE` para crear o actualizar el registro correspondiente.
+
+## Agregar un nuevo suministro
+
+<Steps>
+  <Step title="Abrir el formulario de nuevo suministro">
+    En la sección **Gestión de suministros**, haz clic en **Nuevo suministro**.
+  </Step>
+  <Step title="Ingresar los datos básicos">
+    Completa **Descripción** y selecciona la **Categoría** (`id_tipo_suministro`). Estos dos campos son los únicos obligatorios para crear el registro base del suministro.
+  </Step>
+  <Step title="Asignar proveedor y precio (opcional pero recomendado)">
+    Selecciona un **Proveedor** e ingresa el **Precio de compra**. Proveedor y precio deben enviarse juntos — no puedes enviar uno sin el otro. Si omites ambos, el suministro se crea sin precio ni stock asignado.
+  </Step>
+  <Step title="Definir el stock inicial">
+    Ingresa la cantidad de **Stock** inicial. Si el valor es `0`, el suministro quedará con estado **No Disponible** automáticamente.
+  </Step>
+  <Step title="Guardar">
+    Haz clic en **Guardar**. El sistema crea el suministro (`POST /admin/supplies`), registra el precio llamando a `sp_actualizar_precio` e inserta el stock en `suministro_proveedor_stock`.
+  </Step>
+</Steps>
+
+## Eliminar un suministro
+
+<Warning>
+  Eliminar un suministro es **permanente** e implica una eliminación en cascada manual. El sistema ejecuta en orden:
+  1. `DELETE FROM suministro_proveedor_stock` — elimina todos los registros de stock.
+  2. `DELETE FROM suministros_precios` — elimina **todo el historial de precios**.
+  3. `DELETE FROM suministros` — elimina el suministro.
+
+  Esta operación no puede deshacerse. Si el suministro tiene pedidos asociados, la eliminación puede fallar por restricciones de clave foránea en la base de datos.
+</Warning>

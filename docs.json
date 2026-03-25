@@ -1,122 +1,89 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "Sistema de Distribución de Suministros — Farmcorp",
+  "theme": "linden",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#2E5FA3",
+    "light": "#E8EDF5",
+    "dark": "#1B3A6B"
   },
-  "favicon": "/favicon.svg",
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/vicmmoraM/Sistema_Distribuci-n_Suministros"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/vicmmoraM/Sistema_Distribuci-n_Suministros"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Guía de Usuario",
         "groups": [
           {
-            "group": "Getting started",
-            "pages": [
-              "index",
-              "quickstart",
-              "development"
-            ]
+            "group": "Introducción",
+            "pages": ["introduction", "roles-y-permisos"]
           },
           {
-            "group": "Customization",
-            "pages": [
-              "essentials/settings",
-              "essentials/navigation"
-            ]
+            "group": "Realizar Pedidos",
+            "pages": ["pedidos/nuevo-pedido", "pedidos/carrito-y-cupos", "pedidos/confirmacion"]
           },
           {
-            "group": "Writing content",
-            "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
-            ]
+            "group": "Seguimiento y Aprobación",
+            "pages": ["pedidos/mis-pedidos", "aprobaciones/flujo-aprobacion", "aprobaciones/estados-pedido"]
           },
           {
-            "group": "AI tools",
-            "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
-            ]
+            "group": "Reportes",
+            "pages": ["reportes/reportes-pedidos", "reportes/exportacion-excel"]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "Administración",
         "groups": [
           {
-            "group": "API documentation",
-            "pages": [
-              "api-reference/introduction"
-            ]
+            "group": "Panel Administrativo",
+            "pages": ["admin/gestion-usuarios", "admin/gestion-suministros", "admin/gestion-pdvs"]
           },
           {
-            "group": "Endpoint examples",
-            "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
-            ]
+            "group": "Configuración",
+            "pages": ["admin/ventanas-pedidos", "admin/presupuestos-cupos", "admin/roles-permisos"]
+          }
+        ]
+      },
+      {
+        "tab": "Despliegue",
+        "groups": [
+          {
+            "group": "Instalación",
+            "pages": ["deploy/requisitos", "deploy/docker", "deploy/base-de-datos"]
+          },
+          {
+            "group": "Configuración del Sistema",
+            "pages": ["deploy/variables-entorno", "deploy/autenticacion-ldap", "deploy/email"]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Autenticación",
+            "pages": ["api/auth"]
+          },
+          {
+            "group": "Pedidos",
+            "pages": ["api/pedidos", "api/catalogos"]
+          },
+          {
+            "group": "Administración",
+            "pages": ["api/admin", "api/reportes", "api/gestion"]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

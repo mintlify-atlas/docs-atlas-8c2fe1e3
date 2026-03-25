@@ -1,0 +1,61 @@
+---
+title: "Requisitos del sistema"
+description: "Requisitos de software, red y servicios para desplegar el Sistema de Distribución de Suministros de Farmcorp."
+---
+
+Antes de iniciar el despliegue, verifica que el entorno de destino cumple con los requisitos listados a continuación. El sistema se compone de dos servicios: el backend API (Node.js/Express) y el frontend React servido de forma estática.
+
+<CardGroup cols={2}>
+  <Card title="Docker (recomendado)" icon="docker">
+    **Docker Engine** 24+ y **Docker Compose** v2+
+
+    La forma más sencilla de desplegar ambos servicios. Las imágenes de producción ya están publicadas en el GitHub Container Registry.
+
+    ```
+    docker --version
+    docker compose version
+    ```
+  </Card>
+
+  <Card title="Node.js (alternativa)" icon="node">
+    **Node.js 18 LTS** o superior y **npm 9+**
+
+    Necesario si prefieres ejecutar los servicios directamente sobre el sistema operativo sin contenedores.
+
+    ```
+    node --version   # v18.x o superior
+    npm --version    # 9.x o superior
+    ```
+  </Card>
+
+  <Card title="Base de datos" icon="database">
+    **MariaDB** o **MySQL 8.0+**
+
+    El sistema requiere una instancia de MySQL/MariaDB accesible desde el servidor donde corra el backend. Puerto por defecto: `3306`.
+
+    - El esquema y los datos iniciales se cargan con los scripts SQL de la carpeta `BASEDEDATOS/`.
+    - Se utilizan procedimientos almacenados (`sp_aprobar_pedido`, `sp_actualizar_precio`), por lo que el usuario de base de datos debe tener permisos `EXECUTE`.
+  </Card>
+
+  <Card title="Red y servicios externos" icon="network-wired">
+    **LDAP / Active Directory**
+
+    En modo de producción (`AUTH_MODE=ldap`), el backend debe poder resolver y conectarse al servidor de Active Directory en el puerto `389`.
+
+    **Servidor SMTP**
+
+    Para el envío de notificaciones de pedidos por correo electrónico se necesita acceso a un servidor SMTP (puerto configurable, por defecto `465` con TLS).
+  </Card>
+</CardGroup>
+
+## Puertos requeridos
+
+| Servicio | Puerto | Descripción |
+|---|---|---|
+| Backend API | `3001` | API REST de Express. Debe ser accesible desde el frontend. |
+| Frontend | `5173` | Aplicación React servida por `serve`. Accesible desde los navegadores de los usuarios. |
+| MySQL / MariaDB | `3306` | Base de datos. Solo debe ser accesible desde el backend, no desde internet. |
+
+<Note>
+  En un despliegue de producción típico, solo el puerto `5173` (o el que configure en su proxy reverso) debe exponerse a internet. Los puertos `3001` y `3306` pueden restringirse a la red interna.
+</Note>

@@ -1,0 +1,117 @@
+---
+title: 'Exportación a Excel'
+description: 'Descarga el detalle de pedidos de suministros en formato Excel con subtotales por pedido, total general y columnas configurables.'
+---
+
+El endpoint `GET /api/reportes/pedidos/excel` genera y descarga un archivo `.xlsx` con el mismo detalle por ítem que el reporte paginado, enriquecido con formato visual, subtotales automáticos por pedido y un total general al final.
+
+Acepta los mismos filtros de búsqueda que `GET /api/reportes/pedidos` y adicionalmente el parámetro `campos` para personalizar las columnas incluidas.
+
+<Info>
+  Este endpoint también requiere el permiso **REPORTES**. La autenticación se valida mediante el middleware `requireAuth` antes de procesar la solicitud.
+</Info>
+
+## Selección de columnas con `campos`
+
+Por defecto el archivo incluye todas las columnas disponibles. Usa el parámetro `campos` para incluir únicamente las columnas que necesitas, separadas por coma.
+
+```http
+GET /api/reportes/pedidos/excel?campos=pedidoId,fecha,pdvNombre,estado,subtotal
+```
+
+El orden de las columnas en el archivo respeta el orden en que se listan en el parámetro.
+
+<Tip>
+  Usar `campos` para reducir las columnas exportadas disminuye significativamente el tamaño del archivo cuando se trabaja con conjuntos de datos grandes. Incluye solo las columnas que el destinatario del reporte realmente necesita.
+</Tip>
+
+## Columnas disponibles
+
+Los IDs de campo que se pueden pasar en el parámetro `campos` son los siguientes:
+
+| ID de campo      | Encabezado en Excel  | Descripción                                      |
+| ---------------- | -------------------- | ------------------------------------------------ |
+| `pedidoId`       | Pedido #             | ID numérico del pedido                           |
+| `fecha`          | Fecha                | Fecha de registro (formato `mm/dd/yyyy`)         |
+| `region`         | Region               | Región del punto de venta                        |
+| `usuarioNombre`  | Usuario              | Nombre completo del usuario solicitante          |
+| `departamento`   | Departamento         | Departamento del usuario                         |
+| `pdvNombre`      | PDV                  | Código de centro de costo del PDV                |
+| `ciudad`         | Ciudad               | Ciudad del PDV                                   |
+| `supervisor`     | Supervisor           | Supervisor asignado al PDV                       |
+| `codigoZona`     | Código Zona          | Código de la zona comercial                      |
+| `estado`         | Estado               | Estado del pedido (ej. Aprobado, Rechazado)      |
+| `tipoSuministro` | Tipo Suministro      | Categoría del suministro                         |
+| `suministro`     | Suministro           | Nombre del artículo solicitado                   |
+| `proveedor`      | Proveedor            | Proveedor del ítem                               |
+| `cantidad`       | Cantidad             | Unidades solicitadas (entero)                    |
+| `precioUnitario` | P. Unitario $        | Precio por unidad en formato `$#,##0.00`         |
+| `subtotal`       | Subtotal $           | `cantidad × precioUnitario` en formato `$#,##0.00` |
+
+## Características del archivo generado
+
+<CardGroup cols={2}>
+  <Card title="Encabezado y subtítulo" icon="layout">
+    La primera fila contiene el título del reporte con fondo azul oscuro y texto blanco. La segunda fila muestra el período filtrado, el PDV, el estado, el tipo de suministro y la fecha/hora de generación.
+  </Card>
+
+  <Card title="Encabezados de columna" icon="table">
+    La fila 4 contiene los nombres de columna con fondo azul medio y texto blanco en negrita. Incluye **auto-filtros** activados y la fila permanece **congelada** al hacer scroll vertical.
+  </Card>
+
+  <Card title="Subtotales por pedido" icon="sigma">
+    Cuando la columna `subtotal` está incluida, se inserta una fila de subtotal después del último ítem de cada pedido. La etiqueta aparece en la columna `suministro` y el monto en la columna `subtotal`, con formato `$#,##0.00`.
+  </Card>
+
+  <Card title="Total general" icon="calculator">
+    Al final del archivo se agrega una fila **TOTAL GENERAL** con fondo azul oscuro y texto blanco, que suma todos los subtotales del reporte. El monto se ubica en la columna `subtotal` si está presente, luego en `precioUnitario`, o en la última columna disponible.
+  </Card>
+
+  <Card title="Celdas fusionadas" icon="merge">
+    Los campos que se repiten para todos los ítems de un mismo pedido (`pedidoId`, `fecha`, `usuarioNombre`, `departamento`, `pdvNombre`, `ciudad`, `region`, `supervisor`, `codigoZona`, `estado`) se fusionan verticalmente para mejorar la legibilidad.
+  </Card>
+
+  <Card title="Orientación de página" icon="file">
+    El archivo se configura en orientación **vertical (portrait)** cuando se seleccionan 8 columnas o menos. Con más de 8 columnas, la orientación cambia automáticamente a **horizontal (landscape)** para facilitar la impresión.
+  </Card>
+</CardGroup>
+
+## Nombre del archivo descargado
+
+El nombre del archivo varía según si se usa el parámetro `campos`:
+
+| Escenario                    | Nombre del archivo                          |
+| ---------------------------- | ------------------------------------------- |
+| Exportación completa          | `reporte_pedidos_YYYY-MM-DD.xlsx`           |
+| Exportación con `campos`      | `reporte_personalizado_YYYY-MM-DD.xlsx`     |
+
+## Ejemplo de exportación personalizada
+
+Exporta solo las columnas de identificación, ubicación, estado y subtotal para los pedidos de marzo de 2025:
+
+```http
+GET /api/reportes/pedidos/excel?campos=pedidoId,fecha,region,pdvNombre,estado,subtotal&anio=2025&mes=3
+```
+
+El archivo resultante tendrá 6 columnas, orientación vertical, y mostrará subtotales por pedido y el total general al final.
+
+## Filtros aplicables
+
+Todos los filtros del reporte paginado son compatibles con la exportación Excel:
+
+| Parámetro        | Descripción                                              |
+| ---------------- | -------------------------------------------------------- |
+| `mes` + `anio`   | Mes y año específicos                                    |
+| `anio`           | Año completo                                             |
+| `fechaDesde`     | Fecha de inicio del rango (`YYYY-MM-DD`)                 |
+| `fechaHasta`     | Fecha de fin del rango (`YYYY-MM-DD`)                    |
+| `pdv`            | ID del punto de venta                                    |
+| `estado`         | ID del estado del pedido                                 |
+| `tipoSuministro` | ID del tipo de suministro                                |
+| `usuario`        | Texto parcial del login del usuario                      |
+
+Consulta [Reportes de pedidos](/reportes/reportes-pedidos) para ver la descripción detallada de cada filtro.
+
+<Warning>
+  La exportación no tiene límite de filas como el reporte paginado. En bases de datos con un volumen elevado de pedidos, aplicar al menos un filtro de período (`mes`/`anio` o `fechaDesde`/`fechaHasta`) antes de exportar evita tiempos de espera prolongados y archivos de gran tamaño.
+</Warning>

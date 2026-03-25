@@ -1,0 +1,130 @@
+{
+  "projectType": "saas",
+  "projectName": "Sistema de Distribución de Suministros — Farmcorp",
+  "projectDescription": "Internal supply request management system for Farmcorp that allows sales points (PDVs) and internal departments to digitally request office and cleaning supplies with quota enforcement, order windows, and an approval workflow.",
+  "theme": "linden",
+  "primaryColor": "#2E5FA3",
+  "lightColor": "#E8EDF5",
+  "darkColor": "#1B3A6B",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Guía de Usuario",
+        "groups": [
+          {
+            "group": "Introducción",
+            "pages": ["introduction", "roles-y-permisos"]
+          },
+          {
+            "group": "Realizar Pedidos",
+            "pages": ["pedidos/nuevo-pedido", "pedidos/carrito-y-cupos", "pedidos/confirmacion"]
+          },
+          {
+            "group": "Seguimiento y Aprobación",
+            "pages": ["pedidos/mis-pedidos", "aprobaciones/flujo-aprobacion", "aprobaciones/estados-pedido"]
+          },
+          {
+            "group": "Reportes",
+            "pages": ["reportes/reportes-pedidos", "reportes/exportacion-excel"]
+          }
+        ]
+      },
+      {
+        "tab": "Administración",
+        "groups": [
+          {
+            "group": "Panel Administrativo",
+            "pages": ["admin/gestion-usuarios", "admin/gestion-suministros", "admin/gestion-pdvs"]
+          },
+          {
+            "group": "Configuración",
+            "pages": ["admin/ventanas-pedidos", "admin/presupuestos-cupos", "admin/roles-permisos"]
+          }
+        ]
+      },
+      {
+        "tab": "Despliegue",
+        "groups": [
+          {
+            "group": "Instalación",
+            "pages": ["deploy/requisitos", "deploy/docker", "deploy/base-de-datos"]
+          },
+          {
+            "group": "Configuración del Sistema",
+            "pages": ["deploy/variables-entorno", "deploy/autenticacion-ldap", "deploy/email"]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Autenticación",
+            "pages": ["api/auth"]
+          },
+          {
+            "group": "Pedidos",
+            "pages": ["api/pedidos", "api/catalogos"]
+          },
+          {
+            "group": "Administración",
+            "pages": ["api/admin", "api/reportes", "api/gestion"]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Order request flow with quota enforcement for PDVs and departmental budget tracking",
+    "Time-window restrictions by commercial zone — orders only allowed on configured days of the month",
+    "Role-based access control with permissions: PEDIDOS, REPORTES, APROBACION, CONFIGURACION",
+    "Dual authentication: local (test) mode and LDAP/Active Directory (production)",
+    "Approval workflow: approvers can view, edit items, approve with notes, or reject with mandatory reason",
+    "Automatic CSV and Excel report generation with email notifications on order submission",
+    "Admin panel for managing users, supplies (with price history), PDVs, providers, and categories",
+    "Server-side price recalculation — frontend prices are never trusted",
+    "Automatic monthly budget/quota reset with period tracking",
+    "Docker-based deployment with MariaDB/MySQL backend"
+  ],
+  "publicApiSurface": [
+    "POST /api/auth/login",
+    "POST /api/auth/logout",
+    "GET /api/auth/me",
+    "GET /api/auth/departamento/:username",
+    "GET /api/catalogos/departamentos",
+    "GET /api/catalogos/pdvs",
+    "GET /api/catalogos/tipo-suministros",
+    "GET /api/catalogos/suministros",
+    "GET /api/catalogos/estados-pedido",
+    "POST /api/pedidos",
+    "GET /api/pedidos/aprobaciones",
+    "GET /api/pedidos/:id",
+    "PUT /api/pedidos/:id/items",
+    "POST /api/pedidos/:id/aprobar",
+    "POST /api/pedidos/:id/rechazar",
+    "GET /api/reportes/pedidos",
+    "GET /api/reportes/pedidos/excel",
+    "GET /api/admin/users",
+    "POST /api/admin/users",
+    "PUT /api/admin/users/:id",
+    "PATCH /api/admin/users/:id/status",
+    "DELETE /api/admin/users/:id",
+    "GET /api/admin/supplies",
+    "POST /api/admin/supplies",
+    "PUT /api/admin/supplies/:id",
+    "DELETE /api/admin/supplies/:id",
+    "GET /api/admin/pdvs",
+    "POST /api/admin/pdvs",
+    "PUT /api/admin/pdvs/:id",
+    "GET /api/admin/roles",
+    "PUT /api/admin/roles/:id/permissions",
+    "GET /api/gestion/pdvs/export/excel",
+    "GET /api/gestion/supplies/export/excel",
+    "GET /api/gestion/departamentos/ventana-pedidos",
+    "PUT /api/gestion/departamentos/ventana-pedidos/actualizar-todos",
+    "GET /api/gestion/pdvs/configuracion-por-region",
+    "PUT /api/gestion/pdvs/ventana-pedidos/region/:id_region",
+    "POST /api/gestion/pdvs/reset-cupos",
+    "POST /api/gestion/departamentos/reset-presupuesto"
+  ]
+}

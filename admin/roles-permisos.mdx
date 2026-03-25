@@ -1,0 +1,90 @@
+---
+title: Roles y permisos del sistema
+description: Gestiona los roles de usuario y los permisos que controlan el acceso a cada módulo del sistema.
+---
+
+El sistema de permisos se basa en **roles**. Cada usuario tiene un rol asignado, y cada rol tiene un conjunto de permisos que determinan a qué partes del sistema puede acceder.
+
+## Permisos disponibles
+
+Existen cuatro permisos que se pueden asignar a un rol:
+
+| Código | Módulo habilitado |
+|---|---|
+| `PEDIDOS` | Puede realizar pedidos de suministros |
+| `REPORTES` | Accede al módulo de reportes y exportación |
+| `APROBACION` | Puede aprobar o rechazar pedidos |
+| `CONFIGURACION` | Accede al panel administrativo y a la configuración |
+
+## Estructura en base de datos
+
+Los permisos se almacenan en una relación muchos a muchos:
+
+- **`roles`**: define los roles del sistema con su descripción.
+- **`permisos`**: contiene los permisos disponibles; la columna `codigo` almacena el identificador (`PEDIDOS`, `REPORTES`, etc.).
+- **`rol_has_permisos`**: tabla de unión que relaciona cada rol con sus permisos asignados.
+- **`v_rol_permisos`**: vista que el sistema consulta para evaluar permisos en tiempo de ejecución. Usada en la validación de acceso al panel administrativo y en el middleware `requirePermission`.
+
+## Consultar roles y permisos
+
+```http
+GET /api/admin/roles
+```
+
+Retorna todos los roles con sus flags de permisos y el número de usuarios asignados.
+
+**Respuesta de ejemplo:**
+
+```json
+[
+  {
+    "id_rol": 1,
+    "descripcion": "Administrador",
+    "puede_pedidos": 1,
+    "puede_reportes": 1,
+    "puede_aprobacion": 1,
+    "puede_configuracion": 1,
+    "total_usuarios": 3
+  },
+  {
+    "id_rol": 2,
+    "descripcion": "Operador",
+    "puede_pedidos": 1,
+    "puede_reportes": 0,
+    "puede_aprobacion": 0,
+    "puede_configuracion": 0,
+    "total_usuarios": 21
+  }
+]
+```
+
+## Actualizar permisos de un rol
+
+```http
+PUT /api/admin/roles/:id/permissions
+```
+
+**Cuerpo de la solicitud:**
+
+```json
+{
+  "puede_pedidos": true,
+  "puede_reportes": true,
+  "puede_aprobacion": false,
+  "puede_configuracion": false
+}
+```
+
+El endpoint elimina todos los permisos actuales del rol y vuelve a insertar únicamente los que lleguen como `true`. Los valores omitidos o `false` no generan ninguna entrada en `rol_has_permisos`.
+
+**Respuesta:**
+
+```json
+{
+  "message": "Permisos actualizados correctamente."
+}
+```
+
+<Warning>
+  Si quitas el permiso `CONFIGURACION` del rol que tienes asignado, perderás el acceso al panel administrativo de forma inmediata. La sesión activa no se cierra, pero cualquier intento de navegar al panel devolverá un error 403. Para recuperar el acceso necesitarás que otro usuario con `CONFIGURACION` te lo restaure.
+</Warning>

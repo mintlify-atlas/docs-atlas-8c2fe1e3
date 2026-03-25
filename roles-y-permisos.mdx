@@ -1,0 +1,104 @@
+---
+title: "Roles y permisos"
+description: "Descripción de los cuatro roles del sistema y los permisos que controlan el acceso a cada módulo."
+---
+
+El sistema define cuatro roles de usuario. Cada rol determina qué acciones puede realizar su titular y a qué módulos tiene acceso. Los permisos son verificados en el servidor en cada solicitud.
+
+## Resumen de roles
+
+| Rol | Realiza pedidos | Aprueba pedidos | Accede a reportes | Administra el sistema |
+|---|:---:|:---:|:---:|:---:|
+| **Comercial (PDV)** | Sí | No | No | No |
+| **Departamento** | Sí | No | No | No |
+| **Financiero / Tecnología** | No | Sí | Sí | No |
+| **Administrador** | Sí | Sí | Sí | Sí |
+
+## Descripción de cada rol
+
+<AccordionGroup>
+  <Accordion title="Comercial (PDV)" icon="store">
+    Usuarios asignados a un Punto de Venta. Acceden al sistema para solicitar suministros de oficina y limpieza dentro de su cupo y la ventana de pedidos habilitada para su zona comercial.
+
+    **Asignación automática de PDV:** cuando el usuario pertenece al departamento Comercial, el sistema detecta su PDV con base en el nombre de usuario y la unidad organizativa `ou=pdv` registrada en el directorio LDAP. En modo local, la asignación se realiza mediante el campo de departamento en la base de datos.
+
+    - Puede crear pedidos nuevos y agregar ítems al carrito.
+    - Puede consultar su historial de pedidos y ver el estado (Pendiente, Aprobado, Rechazado).
+    - Puede ver el motivo de rechazo cuando un pedido es rechazado.
+    - No puede aprobar ni rechazar pedidos de otros usuarios.
+    - No puede acceder al panel administrativo ni a los reportes globales.
+  </Accordion>
+
+  <Accordion title="Departamento" icon="building-2">
+    Usuarios de áreas internas de Farmcorp (RRHH, TI, Finanzas, etc.). Funcionan de forma similar al rol Comercial pero están asociados a un departamento interno en lugar de un PDV.
+
+    - Puede crear pedidos asignados a su departamento y su presupuesto disponible.
+    - Puede consultar su historial de pedidos.
+    - Su ventana de pedidos puede diferir de la de los PDVs Comerciales; el administrador configura los días habilitados por departamento.
+    - No puede aprobar ni rechazar pedidos.
+    - No puede acceder al panel administrativo ni a los reportes globales.
+  </Accordion>
+
+  <Accordion title="Financiero / Tecnología" icon="circle-check">
+    Responsables de revisar y aprobar o rechazar las solicitudes de suministros enviadas por PDVs y departamentos. Este rol tiene acceso al módulo de **Aprobaciones**.
+
+    - Puede visualizar todos los pedidos pendientes con filtros por solicitante, departamento, estado y fecha.
+    - Puede ver el detalle completo de un pedido, incluidos los ítems solicitados.
+    - Puede editar las cantidades de los ítems de un pedido antes de aprobarlo.
+    - Puede aprobar un pedido con una observación opcional.
+    - Puede rechazar un pedido indicando un motivo (campo obligatorio).
+    - Tiene acceso a los reportes de pedidos.
+    - No puede acceder al panel de configuración del sistema.
+  </Accordion>
+
+  <Accordion title="Administrador" icon="shield">
+    Gestión completa del sistema. El acceso al panel administrativo requiere el permiso `CONFIGURACION`, verificado en el servidor mediante la vista `v_rol_permisos` antes de procesar cualquier solicitud al módulo `admin`.
+
+    - Puede gestionar usuarios: crear, editar, activar, desactivar y eliminar cuentas.
+    - Puede gestionar suministros: crear, editar y eliminar ítems del catálogo.
+    - Puede gestionar PDVs: crear, editar, asignar grupos y zonas comerciales.
+    - Puede configurar roles y asignar permisos a cada rol.
+    - Puede configurar ventanas de pedidos por zona y por departamento.
+    - Puede gestionar presupuestos y cupos por PDV y departamento.
+    - Tiene acceso completo a reportes y al historial de todos los pedidos.
+  </Accordion>
+</AccordionGroup>
+
+## Permisos del sistema
+
+Los roles no se definen con permisos fijos en el código. En cambio, cada rol tiene asociado un conjunto de permisos en la tabla `rol_has_permisos`, consultados a través de la vista `v_rol_permisos`. El sistema reconoce cuatro permisos:
+
+| Permiso | Código | Descripción |
+|---|---|---|
+| Pedidos | `PEDIDOS` | Permite crear y enviar solicitudes de suministros. |
+| Reportes | `REPORTES` | Permite acceder al módulo de reportes y exportar historial de pedidos. |
+| Aprobación | `APROBACION` | Permite revisar, aprobar o rechazar pedidos de otros usuarios. |
+| Configuración | `CONFIGURACION` | Permite acceder al panel administrativo y modificar la configuración del sistema. |
+
+Los permisos se leen en cada inicio de sesión y se incluyen en la respuesta del endpoint `POST /api/auth/login`. El frontend los usa para mostrar u ocultar módulos; el backend los revalida en cada llamada protegida.
+
+```javascript
+// Permisos devueltos en la respuesta de login (supply-backend/src/routes/auth.js)
+permissions: {
+  pedidos: true,       // PEDIDOS
+  reportes: false,     // REPORTES
+  aprobacion: false,   // APROBACION
+  configuracion: false // CONFIGURACION
+}
+```
+
+<Info>
+  Los roles y sus permisos se gestionan desde el panel administrativo en **Configuración → Roles y permisos**. Solo los usuarios con el permiso `CONFIGURACION` pueden modificar la asignación de permisos a un rol. Los cambios tienen efecto en el próximo inicio de sesión de los usuarios afectados.
+</Info>
+
+## Asignación de roles a usuarios LDAP
+
+En modo de producción (LDAP), el sistema determina el departamento del usuario a partir del atributo `department` y del DN (Distinguished Name) del registro en el Active Directory.
+
+La lógica de resolución funciona de la siguiente manera:
+
+1. Si el atributo `department` es `servidor` **o** el DN contiene `ou=pdv`, el usuario es mapeado al departamento **Comercial**, independientemente de otros atributos.
+2. En caso contrario, el sistema normaliza el valor de `department` y los componentes `OU=` del DN, y los compara contra los departamentos registrados en la base de datos.
+3. Si no se encuentra una coincidencia, el inicio de sesión es rechazado con un mensaje que indica los candidatos detectados.
+
+Esta lógica garantiza que los usuarios de Puntos de Venta sean clasificados correctamente como **Comercial** sin configuración manual adicional.

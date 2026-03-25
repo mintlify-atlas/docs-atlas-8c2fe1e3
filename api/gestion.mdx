@@ -1,0 +1,392 @@
+---
+title: 'Operations (Gestión)'
+description: 'Data exports and configuration management for order windows, PDV quotas, and department budgets.'
+---
+
+<Warning>
+  All endpoints in this section require both an active session **and** the `CONFIGURACION` permission (`permissions.configuracion === true`). Requests without this permission return `403`.
+</Warning>
+
+---
+
+## Excel Exports
+
+### GET /api/gestion/pdvs/export/excel
+
+Exports the full PDV list to an Excel workbook. Accepts multiple filters; numeric IDs and text partial matches are both supported for most filter fields.
+
+<Note>
+  The workbook contains two sheets: **PDVs** (data) and **Filtros aplicados** (a summary of which filters were active).
+</Note>
+
+#### Query parameters
+
+<ParamField query="search" type="string">
+  Searches across PDV code, address, region, city, zone, supplier, supervisor, and status simultaneously.
+</ParamField>
+
+<ParamField query="region" type="string">
+  Region filter. Numeric ID for exact match; text for partial name match.
+</ParamField>
+
+<ParamField query="centroCosto" type="string">
+  Partial match on cost center code (`codigo_centro_costo`).
+</ParamField>
+
+<ParamField query="zone" type="string">
+  Zone filter. Numeric ID for exact match; text for partial zone name match.
+</ParamField>
+
+<ParamField query="city" type="string">
+  City filter. Numeric ID for exact match; text for partial city name match.
+</ParamField>
+
+<ParamField query="provider" type="string">
+  Supplier filter. Numeric ID for exact match; text for partial supplier name match.
+</ParamField>
+
+<ParamField query="supervisor" type="string">
+  Supervisor filter. Numeric ID for exact match; text for partial name match.
+</ParamField>
+
+<ParamField query="status" type="string">
+  PDV status filter. Numeric ID for exact match; text for partial status description match.
+</ParamField>
+
+#### Response
+
+Binary Excel file stream.
+
+- **Content-Type:** `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`
+- **Content-Disposition:** `attachment; filename=PDVs.xlsx`
+
+Columns in the **PDVs** sheet: `REGION`, `CENTRO DE COSTO`, `ZONA`, `CIUDAD`, `PROVEEDOR`, `SUPERVISOR`, `ESTADO`, `DIRECCION`, `MONTOAUTORIZADO` (formatted as `$#,##0.00`).
+
+```bash cURL
+curl "http://localhost:3001/api/gestion/pdvs/export/excel?region=2&status=1" \
+  -b cookies.txt \
+  -o PDVs.xlsx
+```
+
+---
+
+### GET /api/gestion/supplies/export/excel
+
+Exports the supply list to an Excel workbook. Filters match the same options available in the admin supplies panel.
+
+<Note>
+  The workbook contains two sheets: **Suministros** (data) and **Filtros aplicados** (filter summary).
+</Note>
+
+#### Query parameters
+
+<ParamField query="search" type="string">
+  Searches across supply name, category, supplier name, and status.
+</ParamField>
+
+<ParamField query="category" type="number">
+  Filter by supply type ID (exact match).
+</ParamField>
+
+<ParamField query="provider" type="number">
+  Filter by supplier ID (matches the active price record).
+</ParamField>
+
+#### Response
+
+Binary Excel file stream.
+
+- **Content-Type:** `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`
+- **Content-Disposition:** `attachment; filename=Suministros.xlsx`
+
+Columns: `SUMINISTRO`, `CATEGORIA`, `PROVEEDOR`, `PRECIO` (currency), `STOCK`, `ESTADO`, `FECHA ACTUALIZACION`.
+
+```bash cURL
+curl "http://localhost:3001/api/gestion/supplies/export/excel?category=1" \
+  -b cookies.txt \
+  -o Suministros.xlsx
+```
+
+---
+
+## Department Order Windows
+
+### GET /api/gestion/departamentos/ventana-pedidos
+
+Returns the configured order window (day range) for every department. If the `dias_inicio_ventana` / `dias_fin_ventana` columns do not yet exist on the `departamentos` table, defaults of `1` and `3` are returned.
+
+#### Response
+
+Array of department window objects, ordered alphabetically by department name.
+
+<ResponseField name="id_departamento" type="number">Department ID.</ResponseField>
+<ResponseField name="descripcion" type="string">Department name.</ResponseField>
+<ResponseField name="dias_inicio_ventana" type="number">First day of the order window (1–31). Default: `1`.</ResponseField>
+<ResponseField name="dias_fin_ventana" type="number">Last day of the order window (1–31). Default: `3`.</ResponseField>
+
+```bash cURL
+curl http://localhost:3001/api/gestion/departamentos/ventana-pedidos \
+  -b cookies.txt
+```
+
+```json Response
+[
+  { "id_departamento": 3, "descripcion": "Finanzas", "dias_inicio_ventana": 1, "dias_fin_ventana": 5 },
+  { "id_departamento": 2, "descripcion": "Logística", "dias_inicio_ventana": 1, "dias_fin_ventana": 3 }
+]
+```
+
+---
+
+### PUT /api/gestion/departamentos/ventana-pedidos/actualizar-todos
+
+Applies the same order window to **all** departments in a single update.
+
+<Warning>
+  This overwrites the individual window configuration for every department at once. There is no confirmation step.
+</Warning>
+
+#### Request body
+
+<ParamField body="dias_inicio_ventana" type="number" required>
+  First day of the window (1–31). Must be less than or equal to `dias_fin_ventana`.
+</ParamField>
+
+<ParamField body="dias_fin_ventana" type="number" required>
+  Last day of the window (1–31). Must be greater than or equal to `dias_inicio_ventana`.
+</ParamField>
+
+#### Response
+
+<ResponseField name="message" type="string">Confirmation message.</ResponseField>
+<ResponseField name="dias_inicio_ventana" type="number">The applied start day.</ResponseField>
+<ResponseField name="dias_fin_ventana" type="number">The applied end day.</ResponseField>
+
+#### Error responses
+
+| Status | Condition |
+|--------|-----------|
+| `400` | Values missing, out of range, or `dias_inicio > dias_fin` |
+| `400` | Database columns `dias_inicio_ventana`/`dias_fin_ventana` do not exist (migration needed) |
+
+```bash cURL
+curl -X PUT http://localhost:3001/api/gestion/departamentos/ventana-pedidos/actualizar-todos \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{"dias_inicio_ventana": 1, "dias_fin_ventana": 5}'
+```
+
+```json Response
+{
+  "message": "Ventana de pedidos actualizada para todos los departamentos",
+  "dias_inicio_ventana": 1,
+  "dias_fin_ventana": 5
+}
+```
+
+---
+
+## PDV Order Windows
+
+### GET /api/gestion/pdvs/configuracion-por-region
+
+Returns PDV order window configuration grouped by region. Useful for reviewing and editing windows at the regional level.
+
+<Note>
+  Zones with the code or name `ORIENTE` are grouped under the "Oriente" region regardless of their city's geographic region — this matches the same grouping logic used when writing windows.
+</Note>
+
+#### Response
+
+Array of region objects with zone and window aggregates, ordered alphabetically by region. Only regions that have at least one PDV are included.
+
+<ResponseField name="id_region" type="number">Region ID.</ResponseField>
+<ResponseField name="region" type="string">Region name.</ResponseField>
+<ResponseField name="cantidad_pdvs" type="number">Number of PDVs in this region.</ResponseField>
+<ResponseField name="cantidad_zonas" type="number">Number of distinct commercial zones in this region.</ResponseField>
+<ResponseField name="dia_inicio" type="number">
+  Start day if all zones in the region share a single uniform start day. `null` if windows differ across zones.
+</ResponseField>
+<ResponseField name="dia_fin" type="number">
+  End day if all zones share a single uniform end day. `null` if windows differ.
+</ResponseField>
+<ResponseField name="ventana_uniforme" type="number">`1` if all zones have the same window, `0` if they differ.</ResponseField>
+<ResponseField name="zonas" type="string">Comma-separated list of zone names in this region.</ResponseField>
+
+```bash cURL
+curl http://localhost:3001/api/gestion/pdvs/configuracion-por-region \
+  -b cookies.txt
+```
+
+```json Response
+[
+  {
+    "id_region": 1,
+    "region": "Sierra Norte",
+    "cantidad_pdvs": 14,
+    "cantidad_zonas": 3,
+    "dia_inicio": 5,
+    "dia_fin": 10,
+    "ventana_uniforme": 1,
+    "zonas": "Zona A, Zona B, Zona C"
+  }
+]
+```
+
+---
+
+### PUT /api/gestion/pdvs/ventana-pedidos/region/:id_region
+
+Updates the order window for all PDV zones belonging to a given region. Uses an upsert on `zona_ventanas_pedido` so existing windows are updated in place.
+
+#### Path parameters
+
+<ParamField path="id_region" type="number" required>
+  Region ID. The region's name is checked to apply the special `ORIENTE` grouping if needed.
+</ParamField>
+
+#### Request body
+
+<ParamField body="dia_inicio" type="number" required>
+  First day of the order window (1–31). Must be less than or equal to `dia_fin`.
+</ParamField>
+
+<ParamField body="dia_fin" type="number" required>
+  Last day of the order window (1–31). Must be greater than or equal to `dia_inicio`.
+</ParamField>
+
+#### Response
+
+<ResponseField name="message" type="string">Confirmation message.</ResponseField>
+<ResponseField name="id_region" type="number">Region ID that was updated.</ResponseField>
+<ResponseField name="dia_inicio" type="number">Applied start day.</ResponseField>
+<ResponseField name="dia_fin" type="number">Applied end day.</ResponseField>
+<ResponseField name="zonas_actualizadas" type="number">Number of zones whose windows were updated.</ResponseField>
+
+#### Error responses
+
+| Status | Condition |
+|--------|-----------|
+| `400` | Values missing, out of range, or `dia_inicio > dia_fin` |
+| `404` | No zones with PDVs found for the specified region |
+
+```bash cURL
+curl -X PUT http://localhost:3001/api/gestion/pdvs/ventana-pedidos/region/1 \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{"dia_inicio": 5, "dia_fin": 10}'
+```
+
+```json Response
+{
+  "message": "Ventana de pedidos actualizada para la región.",
+  "id_region": 1,
+  "dia_inicio": 5,
+  "dia_fin": 10,
+  "zonas_actualizadas": 3
+}
+```
+
+---
+
+## Quota and Budget Resets
+
+### POST /api/gestion/pdvs/reset-cupos
+
+Resets `cupo_disponible` to the group's `monto_autorizado` for all PDVs, or for a single PDV if `id_pdv` is provided.
+
+<Warning>
+  This immediately restores quota for the specified PDVs. If period-tracking columns (`cupo_periodo_anio`, `cupo_periodo_mes`) exist on the `pdvs` table, they are also updated to the current period.
+</Warning>
+
+#### Request body
+
+<ParamField body="id_pdv" type="number">
+  Optional. If provided, only this PDV's quota is reset. If omitted, all PDVs are reset.
+</ParamField>
+
+#### Response
+
+<ResponseField name="message" type="string">
+  e.g., `"Cupos reiniciados para 24 PDV(s)."` or `"Cupo reiniciado para el PDV 12."`
+</ResponseField>
+<ResponseField name="affectedRows" type="number">
+  Number of PDV records updated. Only present in the bulk reset response.
+</ResponseField>
+
+#### Error responses
+
+| Status | Condition |
+|--------|-----------|
+| `400` | The `cupo_disponible` column does not exist on `pdvs` (migration needed) |
+
+```bash Reset all PDVs
+curl -X POST http://localhost:3001/api/gestion/pdvs/reset-cupos \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{}'
+```
+
+```bash Reset a single PDV
+curl -X POST http://localhost:3001/api/gestion/pdvs/reset-cupos \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{"id_pdv": 12}'
+```
+
+```json Response (bulk)
+{
+  "message": "Cupos reiniciados para 24 PDV(s).",
+  "affectedRows": 24
+}
+```
+
+---
+
+### POST /api/gestion/departamentos/reset-presupuesto
+
+Resets `monto_ejecutado` to `0` in `presupuesto_departamentos` for the current period, for all departments or for a single department.
+
+<Warning>
+  This zeroes out the spent-budget tracking for the current period. Orders that were already counted against the budget will no longer reduce available funds until new orders are placed.
+</Warning>
+
+#### Request body
+
+<ParamField body="id_departamento" type="number">
+  Optional. If provided, only this department's budget is reset. If omitted, all departments for the current period are reset.
+</ParamField>
+
+#### Response
+
+<ResponseField name="message" type="string">
+  e.g., `"Presupuesto reiniciado para 8 registro(s)."` or `"Presupuesto reiniciado para el departamento 3."`
+</ResponseField>
+<ResponseField name="affectedRows" type="number">Number of budget records updated.</ResponseField>
+
+#### Error responses
+
+| Status | Condition |
+|--------|-----------|
+| `400` | The `monto_ejecutado` column does not exist on `presupuesto_departamentos` (migration needed) |
+
+```bash Reset all departments
+curl -X POST http://localhost:3001/api/gestion/departamentos/reset-presupuesto \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{}'
+```
+
+```bash Reset a single department
+curl -X POST http://localhost:3001/api/gestion/departamentos/reset-presupuesto \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{"id_departamento": 3}'
+```
+
+```json Response (bulk)
+{
+  "message": "Presupuesto reiniciado para 8 registro(s).",
+  "affectedRows": 8
+}
+```

@@ -1,0 +1,70 @@
+---
+title: "Flujo de aprobación"
+description: "Guía para usuarios con rol Financiero o Tecnología sobre cómo revisar, editar y procesar pedidos pendientes desde el módulo de Aprobaciones."
+---
+
+Los usuarios con rol **Financiero / Tecnología** gestionan los pedidos recibidos desde el módulo **Aprobaciones**. Desde aquí puedes revisar el detalle de cada solicitud, ajustar cantidades si es necesario y aprobar o rechazar el pedido.
+
+## Acciones disponibles por pedido
+
+| Acción | Descripción |
+|--------|-------------|
+| **Ver detalle** | Muestra la información completa del pedido: solicitante, departamento, ítems, totales, estado y observaciones |
+| **Editar ítems** | Permite ajustar las cantidades de los suministros o eliminar ítems antes de aprobar |
+| **Aprobar** | Cambia el estado del pedido a Aprobado; acepta una observación opcional |
+| **Rechazar** | Cambia el estado del pedido a Rechazado; requiere un motivo obligatorio |
+
+<Note>
+  Al editar un pedido antes de aprobarlo, puedes ajustar o eliminar ítems existentes, pero no puedes agregar productos nuevos que no estaban en la solicitud original.
+</Note>
+
+## Proceso de aprobación
+
+<Steps>
+  <Step title="Navega a Aprobaciones → Pedidos">
+    En el menú lateral, accede al módulo **Aprobaciones** y selecciona **Pedidos**. Se listan todos los pedidos en estado Pendiente y En espera.
+  </Step>
+  <Step title="Filtra los pedidos">
+    Usa los filtros disponibles para localizar el pedido que quieres procesar:
+
+    - **Buscar**: por ID de pedido o nombre del solicitante
+    - **Departamento**: filtra por área solicitante
+    - **Estado**: Pendiente, En espera u otros
+    - **Desde / Hasta**: rango de fechas de registro
+  </Step>
+  <Step title="Abre el detalle del pedido">
+    Haz clic en el ícono de ojo (👁️) junto al pedido. Se muestra la información completa: solicitante, departamento, lista de suministros con cantidades y precios, y el total.
+  </Step>
+  <Step title="Edita los ítems si es necesario">
+    Haz clic en **Editar ítems** para ajustar cantidades antes de aprobar. Puedes reducir o eliminar suministros del pedido. Guarda los cambios antes de continuar.
+
+    <Note>
+      Solo puedes modificar cantidades de los productos ya incluidos en el pedido. No es posible agregar suministros nuevos en esta etapa.
+    </Note>
+  </Step>
+  <Step title="Aprueba el pedido">
+    Haz clic en **Aprobar**. Se abre un modal de confirmación donde puedes agregar una observación opcional para el solicitante. Confirma la acción para que el pedido cambie a estado **Aprobado**.
+  </Step>
+</Steps>
+
+## Proceso de rechazo
+
+<Warning>
+  El motivo de rechazo es obligatorio. No es posible rechazar un pedido sin ingresar una razón.
+</Warning>
+
+<Steps>
+  <Step title="Haz clic en Rechazar">
+    Desde la tabla de pedidos o desde el modal de detalle, haz clic en el botón **Rechazar**.
+  </Step>
+  <Step title="Ingresa el motivo">
+    Escribe el motivo del rechazo en el campo habilitado. Este texto quedará registrado y el solicitante podrá verlo desde **Mis Pedidos**.
+  </Step>
+  <Step title="Confirma el rechazo">
+    Confirma la acción. El pedido cambia a estado **Rechazado** y el cupo o presupuesto descontado al momento del pedido se restaura automáticamente.
+  </Step>
+</Steps>
+
+<Info>
+  Cuando un pedido pendiente es rechazado, el sistema restaura el cupo disponible del PDV o el presupuesto del departamento correspondiente, dejándolo disponible para futuros pedidos.
+</Info>

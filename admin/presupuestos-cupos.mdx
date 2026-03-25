@@ -1,0 +1,99 @@
+---
+title: Presupuestos y cupos
+description: Administra los presupuestos mensuales de los departamentos y los cupos de gasto de los PDVs.
+---
+
+El sistema impone límites de gasto en dos dimensiones: **cupos** para PDVs comerciales y **presupuestos** para departamentos internos. Ambos se descuentan automáticamente al registrar un pedido y pueden reiniciarse manualmente desde la API de gestión.
+
+## Cupos de PDVs
+
+Cada PDV pertenece a un grupo de PDVs (`grupo_pdvs`). El grupo define el `monto_autorizado`, que es el tope de gasto permitido. El campo `cupo_disponible` en la tabla `pdvs` registra el saldo restante para el periodo actual.
+
+Cuando se registra un pedido comercial, el total del pedido se descuenta de `cupo_disponible`. Si el cupo es insuficiente, el pedido es rechazado antes de guardarse.
+
+## Presupuestos de departamentos
+
+Los presupuestos de departamentos se almacenan en la tabla `presupuesto_departamentos` con las siguientes columnas relevantes:
+
+| Columna | Descripción |
+|---|---|
+| `id_departamento` | Referencia al departamento |
+| `periodo_anio` | Año del periodo |
+| `periodo_mes` | Mes del periodo (`0` = anual, `> 0` = mensual) |
+| `monto_autorizado` | Límite de gasto para el periodo |
+| `monto_ejecutado` | Monto ya utilizado en pedidos aprobados o pendientes |
+
+Al registrar un pedido de departamento, el sistema busca el presupuesto del periodo actual priorizando el registro mensual sobre el anual. El saldo disponible es `monto_autorizado - monto_ejecutado`.
+
+## Grupos de presupuesto
+
+La tabla `grupos_presupuesto` permite dividir el presupuesto de un departamento en categorías (por ejemplo, Oficina y Limpieza). Cada grupo tiene su propio saldo. Esta segmentación es visible en reportes y en la pantalla de gestión del panel administrativo.
+
+## Seguimiento automático de periodos
+
+El servicio `BudgetPeriodService` se ejecuta automáticamente al inicio de cada solicitud relevante mediante dos funciones:
+
+- **`ensureCurrentDepartmentBudgets`**: verifica que exista un registro de presupuesto para el departamento en el periodo actual. Si no existe, lo crea a partir de la configuración del grupo.
+- **`ensureCurrentPdvBudgets`**: realiza la misma operación para los cupos de PDVs, actualizando `cupo_periodo_anio` y `cupo_periodo_mes` cuando detecta un nuevo periodo.
+
+<Tip>
+  El reinicio de cupos y presupuestos ocurre automáticamente cuando el sistema detecta que comenzó un nuevo periodo. No es necesario ejecutarlo manualmente al inicio de cada mes en condiciones normales.
+</Tip>
+
+## Reinicio manual de cupos de PDVs
+
+```http
+POST /api/gestion/pdvs/reset-cupos
+```
+
+Restablece `cupo_disponible` al valor de `monto_autorizado` del grupo al que pertenece cada PDV.
+
+**Cuerpo opcional:**
+
+```json
+{
+  "id_pdv": 42
+}
+```
+
+Si se omite `id_pdv`, se reinician todos los PDVs. Si se incluye, solo se reinicia ese PDV específico.
+
+**Respuesta (reinicio global):**
+
+```json
+{
+  "message": "Cupos reiniciados para 312 PDV(s).",
+  "affectedRows": 312
+}
+```
+
+## Reinicio manual de presupuestos de departamentos
+
+```http
+POST /api/gestion/departamentos/reset-presupuesto
+```
+
+Establece `monto_ejecutado = 0` en los registros de `presupuesto_departamentos` del periodo actual.
+
+**Cuerpo opcional:**
+
+```json
+{
+  "id_departamento": 5
+}
+```
+
+Si se omite `id_departamento`, se reinician todos los departamentos del periodo activo. Si se incluye, solo se reinicia ese departamento.
+
+**Respuesta (reinicio global):**
+
+```json
+{
+  "message": "Presupuesto reiniciado para 8 registro(s).",
+  "affectedRows": 8
+}
+```
+
+<Warning>
+  El reinicio manual no se puede deshacer. Al ejecutar estos endpoints, el historial de `monto_ejecutado` del periodo actual se pierde. Cualquier pedido pendiente que ya descontó cupo o presupuesto quedará con un saldo incorrecto hasta el próximo pedido o reinicio.
+</Warning>

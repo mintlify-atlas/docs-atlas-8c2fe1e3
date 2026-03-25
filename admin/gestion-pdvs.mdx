@@ -1,0 +1,89 @@
+---
+title: "Gestión de Puntos de Venta (PDVs)"
+description: "Registra y administra los puntos de venta, asigna grupos de presupuesto, zonas comerciales, proveedores principales y supervisores."
+---
+
+Los Puntos de Venta (PDVs) son los destinatarios finales de los pedidos de suministros. Cada PDV pertenece a un grupo que define su cupo autorizado, y tiene asignado un proveedor principal que determina el catálogo de precios que aplica a sus pedidos.
+
+## Lista de PDVs
+
+El endpoint `GET /admin/pdvs` devuelve todos los PDVs con información de zona, región, proveedor, grupo y cupo disponible. Al ejecutarse, también llama a `ensureCurrentPdvBudgets` para garantizar que existan registros de presupuesto activos para el período en curso.
+
+Puedes filtrar con los siguientes parámetros:
+
+| Parámetro | Descripción |
+| --- | --- |
+| `search` | Búsqueda parcial por `codigo_centro_costo` o `direccion` |
+| `region` | Filtra por `id_region` (de la ciudad asociada al PDV) |
+| `zone` | Filtra por `id_zona_comercial` |
+| `provider` | Filtra por `id_proveedor_principal` |
+
+## Campos de un PDV
+
+| Campo | Tipo | Obligatorio | Notas |
+| --- | --- | --- | --- |
+| `descripcion` (`codigo_centro_costo`) | string | Sí | Código o nombre del centro de costo |
+| `direccion` | string | No | Dirección física del PDV |
+| `id_ciudad` | integer | No | Ciudad donde se ubica el PDV |
+| `id_grupo_pdv` | integer | Sí | Grupo al que pertenece; define el `monto_autorizado` |
+| `id_estado_pdv` | integer | Sí | Estado operativo del PDV (activo, inactivo, etc.) |
+| `id_zona_comercial` | integer | Sí | Zona comercial a la que pertenece |
+| `id_proveedor_principal` | integer | No | Proveedor principal asignado (ver nota abajo) |
+| `id_supervisor` | integer | No | Supervisor responsable del PDV |
+
+## Proveedor principal
+
+<Note>
+  El campo `id_proveedor_principal` determina qué catálogo de precios se usa cuando el PDV realiza un pedido. El sistema consulta los precios vigentes del proveedor principal para calcular los totales y validar el cupo disponible. Si un PDV no tiene proveedor principal asignado, no podrá ver suministros disponibles en el catálogo de pedidos.
+</Note>
+
+## Grupos de PDV y cupo
+
+Cada PDV pertenece a un **grupo** (`grupo_pdvs`) que define el `monto_autorizado`: el presupuesto máximo compartido por todos los PDVs del grupo en el período activo.
+
+El campo `cupo_disponible` en la tabla `pdvs` registra el saldo restante del cupo para el período actual. Cuando el cupo se consume con pedidos, este valor disminuye. Para resetear los cupos al inicio de un nuevo período, se usa el endpoint:
+
+```
+POST /api/gestion/pdvs/reset-cupos
+```
+
+Si `cupo_disponible` es `NULL`, el sistema retorna `monto_autorizado` como valor efectivo (el cupo inicial del grupo).
+
+## Supervisor
+
+El campo `id_supervisor` asigna un supervisor de la tabla `supervisores` (solo se listan los supervisores con `activo = 1`). Esta asignación es opcional. Si no se asigna, el PDV aparece como "Sin supervisor" en los reportes y listados.
+
+## Crear un nuevo PDV
+
+<Steps>
+  <Step title="Abrir el formulario de nuevo PDV">
+    En la sección **Gestión de PDVs**, haz clic en **Nuevo PDV**.
+  </Step>
+  <Step title="Ingresar el código del centro de costo">
+    Escribe el **Código / Centro de costo** (`descripcion`). Este campo es obligatorio y se almacena en la columna `codigo_centro_costo`.
+  </Step>
+  <Step title="Asignar grupo, estado y zona comercial">
+    Selecciona el **Grupo PDV**, el **Estado** y la **Zona Comercial**. Los tres son obligatorios para crear el PDV (`POST /admin/pdvs`).
+  </Step>
+  <Step title="Completar datos opcionales">
+    Si lo deseas, agrega la **Dirección**, la **Ciudad**, el **Proveedor principal** y el **Supervisor**. Estos campos pueden dejarse vacíos y actualizarse después.
+  </Step>
+  <Step title="Guardar">
+    Haz clic en **Guardar**. El servidor crea el PDV y devuelve el `id_pdv` asignado. El `cupo_disponible` inicial es `NULL`; el sistema usará `monto_autorizado` del grupo como valor efectivo hasta que se registren pedidos.
+  </Step>
+</Steps>
+
+## Editar un PDV
+
+Al editar un PDV (`PUT /admin/pdvs/:id`), los únicos campos actualizables son: `id_proveedor_principal`, `id_grupo_pdv`, `direccion`, `id_zona_comercial`, `id_supervisor` e `id_ciudad`. El campo `id_grupo_pdv` es el único obligatorio en la edición.
+
+## Creación rápida de proveedores y grupos
+
+<Info>
+  Puedes crear nuevos proveedores y grupos de PDV directamente desde el panel sin salir del formulario de PDV:
+
+  - **Nuevo proveedor**: `POST /admin/proveedores` — requiere `nombre_proveedor`. El nombre se guarda tal como se envía.
+  - **Nuevo grupo PDV**: `POST /admin/grupos_pdvs` — requiere `descripcion` y `monto_autorizado` (≥ 0). La descripción se almacena en mayúsculas.
+
+  Los nuevos registros quedan disponibles inmediatamente en los selectores del formulario.
+</Info>

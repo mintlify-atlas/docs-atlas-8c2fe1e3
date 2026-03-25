@@ -1,0 +1,745 @@
+---
+title: 'Admin Panel'
+description: 'Administrative endpoints for managing users, supplies, PDVs, roles, and system metadata.'
+---
+
+<Warning>
+  All endpoints in this section require both an active session **and** the `CONFIGURACION` permission (`permissions.configuracion === true`). Requests without this permission return `403`.
+</Warning>
+
+---
+
+## Overview
+
+### GET /api/admin/overview
+
+Returns high-level system metrics for the admin dashboard.
+
+### Response
+
+<ResponseField name="totalUsers" type="number">Total number of users in the system.</ResponseField>
+<ResponseField name="activeUsers" type="number">Users with `activo = 1`.</ResponseField>
+<ResponseField name="totalSupplies" type="number">Total number of supplies.</ResponseField>
+<ResponseField name="lowStockSupplies" type="number">Supplies with a combined stock of 10 units or fewer across all providers.</ResponseField>
+
+```bash cURL
+curl http://localhost:3001/api/admin/overview \
+  -b cookies.txt
+```
+
+```json Response
+{
+  "totalUsers": 84,
+  "activeUsers": 79,
+  "totalSupplies": 152,
+  "lowStockSupplies": 7
+}
+```
+
+---
+
+### GET /api/admin/meta
+
+Returns all reference data needed to render admin forms (departments, roles, supply categories, providers, zones, etc.) in a single request.
+
+### Response
+
+<ResponseField name="departamentos" type="array">All departments (`id_departamento`, `descripcion`), ordered by name.</ResponseField>
+<ResponseField name="roles" type="array">All roles (`id_rol`, `descripcion`), ordered by name.</ResponseField>
+<ResponseField name="categorias" type="array">Supply types (`id_tipo_suministro`, `descripcion`), ordered by name.</ResponseField>
+<ResponseField name="estadosSuministro" type="array">Supply statuses (`id_estado_suministro`, `descripcion`), ordered by name.</ResponseField>
+<ResponseField name="proveedores" type="array">Suppliers (`id_proveedor`, `nombre_proveedor`), ordered by name.</ResponseField>
+<ResponseField name="zonasComerciales" type="array">Commercial zones (`id_zona_comercial`, `id_ciudad`, `zona`, `codigo_zona`), ordered by zone name.</ResponseField>
+<ResponseField name="ciudades" type="array">Cities (`id_ciudad`, `id_region`, `descripcion`), ordered by name.</ResponseField>
+<ResponseField name="gruposPdvs" type="array">PDV groups (`id_grupo_pdv`, `descripcion`, `monto_autorizado`), ordered by name.</ResponseField>
+<ResponseField name="estadosPdvs" type="array">PDV statuses (`id_estado_pdv`, `descripcion`), ordered by name.</ResponseField>
+<ResponseField name="supervisores" type="array">Active supervisors (`id_supervisor`, `nombres`), ordered by name.</ResponseField>
+<ResponseField name="regiones" type="array">Regions (`id_region`, `descripcion`), ordered by name.</ResponseField>
+<ResponseField name="gruposPresupuesto" type="array">Active budget groups (`id_grupo_presupuesto`, `descripcion`), ordered by ID.</ResponseField>
+
+```bash cURL
+curl http://localhost:3001/api/admin/meta \
+  -b cookies.txt
+```
+
+---
+
+## Users
+
+### GET /api/admin/users
+
+Returns all users with optional filters.
+
+#### Query parameters
+
+<ParamField query="search" type="string">
+  Partial match on `nombres`, `email`, or `login`.
+</ParamField>
+<ParamField query="role" type="number">
+  Filter by role ID.
+</ParamField>
+<ParamField query="status" type="string">
+  `"active"` or `"inactive"`.
+</ParamField>
+
+#### Response
+
+Array of user objects, ordered by `fecha_registro DESC`.
+
+<ResponseField name="id_usuario" type="number">User ID.</ResponseField>
+<ResponseField name="nombres" type="string">Full name.</ResponseField>
+<ResponseField name="login" type="string">Network login.</ResponseField>
+<ResponseField name="email" type="string">Email address.</ResponseField>
+<ResponseField name="id_rol" type="number">Role ID.</ResponseField>
+<ResponseField name="id_departamento" type="number">Department ID.</ResponseField>
+<ResponseField name="rol" type="string">Role name.</ResponseField>
+<ResponseField name="activo" type="number">`1` if active, `0` if deactivated.</ResponseField>
+<ResponseField name="fecha_registro" type="string">Registration timestamp (`YYYY-MM-DD HH:mm:ss`).</ResponseField>
+
+```bash cURL
+curl "http://localhost:3001/api/admin/users?status=active" \
+  -b cookies.txt
+```
+
+---
+
+### POST /api/admin/users
+
+Creates a new user. Password is bcrypt-hashed (12 rounds) before storage.
+
+#### Request body
+
+<ParamField body="nombres" type="string" required>Full name.</ParamField>
+<ParamField body="login" type="string" required>Network login name (must be unique).</ParamField>
+<ParamField body="email" type="string" required>Email address.</ParamField>
+<ParamField body="id_rol" type="number" required>Role ID.</ParamField>
+<ParamField body="id_departamento" type="number" required>Department ID.</ParamField>
+<ParamField body="password" type="string" required>Initial password (will be hashed).</ParamField>
+
+#### Response
+
+<ResponseField name="id_usuario" type="number">ID of the newly created user.</ResponseField>
+<ResponseField name="message" type="string">`"Usuario creado correctamente."`</ResponseField>
+
+```bash cURL
+curl -X POST http://localhost:3001/api/admin/users \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{"nombres": "Ana Torres", "login": "atorres", "email": "atorres@farmcorp.com.ec", "id_rol": 2, "id_departamento": 3, "password": "initial123"}'
+```
+
+---
+
+### PUT /api/admin/users/:id
+
+Updates a user's profile. If `password` is provided and non-empty, it is re-hashed and updated. Otherwise, the existing password is preserved.
+
+#### Path parameters
+
+<ParamField path="id" type="number" required>User ID.</ParamField>
+
+#### Request body
+
+<ParamField body="nombres" type="string">Full name (optional; existing value kept if omitted).</ParamField>
+<ParamField body="email" type="string">Email address (optional; existing value kept if omitted).</ParamField>
+<ParamField body="id_rol" type="number" required>Role ID.</ParamField>
+<ParamField body="id_departamento" type="number" required>Department ID.</ParamField>
+<ParamField body="activo" type="boolean" required>Whether the user is active.</ParamField>
+<ParamField body="password" type="string">New password. Omit or send empty string to keep the current password.</ParamField>
+
+#### Response
+
+<ResponseField name="message" type="string">`"Usuario actualizado correctamente."`</ResponseField>
+
+```bash cURL
+curl -X PUT http://localhost:3001/api/admin/users/42 \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{"id_rol": 3, "id_departamento": 3, "activo": true}'
+```
+
+---
+
+### PATCH /api/admin/users/:id/status
+
+Toggle a user's active/inactive status without touching other fields.
+
+#### Path parameters
+
+<ParamField path="id" type="number" required>User ID.</ParamField>
+
+#### Request body
+
+<ParamField body="activo" type="boolean" required>`true` to activate, `false` to deactivate.</ParamField>
+
+#### Response
+
+<ResponseField name="message" type="string">`"Usuario activado."` or `"Usuario desactivado."`</ResponseField>
+
+```bash cURL
+curl -X PATCH http://localhost:3001/api/admin/users/42/status \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{"activo": false}'
+```
+
+---
+
+### DELETE /api/admin/users/:id
+
+Permanently deletes a user record.
+
+<Warning>
+  This operation is irreversible. The user is hard-deleted from the database.
+</Warning>
+
+#### Path parameters
+
+<ParamField path="id" type="number" required>User ID.</ParamField>
+
+#### Response
+
+<ResponseField name="message" type="string">`"Usuario eliminado correctamente."`</ResponseField>
+
+```bash cURL
+curl -X DELETE http://localhost:3001/api/admin/users/42 \
+  -b cookies.txt
+```
+
+---
+
+## Supplies
+
+### GET /api/admin/supplies
+
+Returns all supplies with their current price and stock, optionally filtered.
+
+#### Query parameters
+
+<ParamField query="search" type="string">Partial match on supply name or supplier name.</ParamField>
+<ParamField query="category" type="number">Filter by supply type ID.</ParamField>
+<ParamField query="provider" type="number">Filter by supplier ID (matches the active price entry).</ParamField>
+
+#### Response
+
+Array of supply objects.
+
+<ResponseField name="id_suministro" type="number">Supply ID.</ResponseField>
+<ResponseField name="descripcion" type="string">Supply name.</ResponseField>
+<ResponseField name="id_tipo_suministro" type="number">Supply type ID.</ResponseField>
+<ResponseField name="categoria" type="string">Supply type name.</ResponseField>
+<ResponseField name="stock" type="number">Stock level. `0` if not tracked.</ResponseField>
+<ResponseField name="id_estado_suministro" type="number">`1` (Disponible) if stock > 0, `2` (No Disponible) otherwise.</ResponseField>
+<ResponseField name="estado" type="string">`"Disponible"` or `"No Disponible"`.</ResponseField>
+<ResponseField name="id_suministro_precio" type="number">Active price record ID.</ResponseField>
+<ResponseField name="id_proveedor" type="number">Supplier ID for the active price.</ResponseField>
+<ResponseField name="proveedor" type="string">Supplier name.</ResponseField>
+<ResponseField name="precio_compra" type="number">Current unit price.</ResponseField>
+<ResponseField name="fecha_actualizacion" type="string">Last updated timestamp (`YYYY-MM-DD HH:mm:ss`).</ResponseField>
+
+```bash cURL
+curl "http://localhost:3001/api/admin/supplies?category=1" \
+  -b cookies.txt
+```
+
+---
+
+### POST /api/admin/supplies
+
+Creates a new supply. If `id_proveedor` and `precio_compra` are provided, the stored procedure `sp_actualizar_precio` is called and stock is initialized.
+
+<Note>
+  `id_proveedor` and `precio_compra` must both be provided together or both omitted. They cannot be provided independently.
+</Note>
+
+#### Request body
+
+<ParamField body="descripcion" type="string" required>Supply name.</ParamField>
+<ParamField body="id_tipo_suministro" type="number" required>Supply type ID.</ParamField>
+<ParamField body="stock" type="number" default="100">Initial stock level. If `0`, status is set to `No Disponible` (2) automatically.</ParamField>
+<ParamField body="id_proveedor" type="number">Supplier ID. Required if `precio_compra` is provided.</ParamField>
+<ParamField body="precio_compra" type="number">Unit price. Must be `>= 0`. Required if `id_proveedor` is provided.</ParamField>
+
+#### Response
+
+<ResponseField name="id_suministro" type="number">ID of the newly created supply.</ResponseField>
+<ResponseField name="message" type="string">`"Suministro creado correctamente."`</ResponseField>
+
+```bash cURL
+curl -X POST http://localhost:3001/api/admin/supplies \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{"descripcion": "Papel A4", "id_tipo_suministro": 1, "stock": 200, "id_proveedor": 5, "precio_compra": 12.50}'
+```
+
+---
+
+### PUT /api/admin/supplies/:id
+
+Updates an existing supply. All fields are required. Calls `sp_actualizar_precio` for price history tracking.
+
+#### Path parameters
+
+<ParamField path="id" type="number" required>Supply ID.</ParamField>
+
+#### Request body
+
+<ParamField body="descripcion" type="string" required>Supply name.</ParamField>
+<ParamField body="id_tipo_suministro" type="number" required>Supply type ID.</ParamField>
+<ParamField body="stock" type="number" required>Current stock level.</ParamField>
+<ParamField body="id_suministro_precio" type="number" required>Active price record ID.</ParamField>
+<ParamField body="id_proveedor" type="number" required>Supplier ID.</ParamField>
+<ParamField body="precio_compra" type="number" required>Unit price. Must be `>= 0`.</ParamField>
+
+#### Response
+
+<ResponseField name="message" type="string">`"Suministro actualizado correctamente."`</ResponseField>
+
+```bash cURL
+curl -X PUT http://localhost:3001/api/admin/supplies/5 \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{"descripcion": "Papel A4", "id_tipo_suministro": 1, "stock": 180, "id_suministro_precio": 11, "id_proveedor": 5, "precio_compra": 13.00}'
+```
+
+---
+
+### DELETE /api/admin/supplies/:id
+
+Permanently deletes a supply and its associated price and stock records.
+
+<Warning>
+  This operation deletes from `suministro_proveedor_stock` and `suministros_precios` before removing the supply record. It is irreversible.
+</Warning>
+
+#### Path parameters
+
+<ParamField path="id" type="number" required>Supply ID.</ParamField>
+
+#### Response
+
+<ResponseField name="message" type="string">`"Suministro eliminado correctamente."`</ResponseField>
+
+```bash cURL
+curl -X DELETE http://localhost:3001/api/admin/supplies/5 \
+  -b cookies.txt
+```
+
+---
+
+## PDVs
+
+### GET /api/admin/pdvs
+
+Returns all PDVs with full location, status, and quota information.
+
+#### Query parameters
+
+<ParamField query="search" type="string">Partial match on cost center code or address.</ParamField>
+<ParamField query="region" type="number">Filter by region ID.</ParamField>
+<ParamField query="zone" type="number">Filter by commercial zone ID.</ParamField>
+<ParamField query="provider" type="number">Filter by principal supplier ID.</ParamField>
+
+#### Response
+
+Array of PDV objects.
+
+<ResponseField name="id_pdv" type="number">PDV ID.</ResponseField>
+<ResponseField name="descripcion" type="string">Cost center code.</ResponseField>
+<ResponseField name="direccion" type="string">Address.</ResponseField>
+<ResponseField name="id_proveedor_principal" type="number">Principal supplier ID.</ResponseField>
+<ResponseField name="id_grupo_pdv" type="number">PDV group ID.</ResponseField>
+<ResponseField name="id_estado_pdv" type="number">Status ID.</ResponseField>
+<ResponseField name="id_zona_comercial" type="number">Commercial zone ID.</ResponseField>
+<ResponseField name="id_supervisor" type="number">Supervisor ID.</ResponseField>
+<ResponseField name="id_ciudad" type="number">City ID.</ResponseField>
+<ResponseField name="id_region" type="number">Region ID.</ResponseField>
+<ResponseField name="proveedor" type="string">Supplier name.</ResponseField>
+<ResponseField name="ciudad" type="string">City name.</ResponseField>
+<ResponseField name="region" type="string">Region name.</ResponseField>
+<ResponseField name="zona_comercial" type="string">Zone name.</ResponseField>
+<ResponseField name="estado" type="string">Status description.</ResponseField>
+<ResponseField name="grupo" type="string">Group name.</ResponseField>
+<ResponseField name="monto_autorizado" type="number">Group's authorized quota.</ResponseField>
+<ResponseField name="cupo_disponible" type="number">Remaining available quota.</ResponseField>
+<ResponseField name="supervisor" type="string">Supervisor's full name.</ResponseField>
+
+```bash cURL
+curl http://localhost:3001/api/admin/pdvs \
+  -b cookies.txt
+```
+
+---
+
+### POST /api/admin/pdvs
+
+Creates a new PDV.
+
+#### Request body
+
+<ParamField body="descripcion" type="string" required>Cost center code.</ParamField>
+<ParamField body="id_grupo_pdv" type="number" required>PDV group ID (determines the authorized quota).</ParamField>
+<ParamField body="id_estado_pdv" type="number" required>Initial status ID.</ParamField>
+<ParamField body="id_zona_comercial" type="number" required>Commercial zone ID.</ParamField>
+<ParamField body="direccion" type="string">Physical address.</ParamField>
+<ParamField body="id_ciudad" type="number">City ID. Send `null` to leave unassigned.</ParamField>
+<ParamField body="id_proveedor_principal" type="number">Principal supplier ID. Send `null` to leave unassigned.</ParamField>
+
+#### Response
+
+<ResponseField name="id_pdv" type="number">ID of the newly created PDV.</ResponseField>
+<ResponseField name="message" type="string">`"PDV creado correctamente."`</ResponseField>
+
+```bash cURL
+curl -X POST http://localhost:3001/api/admin/pdvs \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{"descripcion": "PDV-SUR-009", "id_grupo_pdv": 2, "id_estado_pdv": 1, "id_zona_comercial": 4}'
+```
+
+---
+
+### PUT /api/admin/pdvs/:id
+
+Updates operational fields for an existing PDV.
+
+#### Path parameters
+
+<ParamField path="id" type="number" required>PDV ID.</ParamField>
+
+#### Request body
+
+<ParamField body="id_grupo_pdv" type="number" required>PDV group ID.</ParamField>
+<ParamField body="id_proveedor_principal" type="number">Supplier ID. Send `null` to clear.</ParamField>
+<ParamField body="direccion" type="string">Physical address.</ParamField>
+<ParamField body="id_zona_comercial" type="number">Commercial zone ID. Send `null` to clear.</ParamField>
+<ParamField body="id_supervisor" type="number">Supervisor ID. Send `null` to clear.</ParamField>
+<ParamField body="id_ciudad" type="number">City ID. Send `null` to clear.</ParamField>
+
+#### Response
+
+<ResponseField name="message" type="string">`"PDV actualizado correctamente."`</ResponseField>
+
+```bash cURL
+curl -X PUT http://localhost:3001/api/admin/pdvs/12 \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{"id_grupo_pdv": 2, "id_proveedor_principal": 5, "id_supervisor": 3}'
+```
+
+---
+
+## Roles
+
+### GET /api/admin/roles
+
+Returns all roles with their permissions and user counts.
+
+#### Response
+
+Array of role objects.
+
+<ResponseField name="id_rol" type="number">Role ID.</ResponseField>
+<ResponseField name="descripcion" type="string">Role name.</ResponseField>
+<ResponseField name="puede_pedidos" type="number">`1` if this role has the PEDIDOS permission.</ResponseField>
+<ResponseField name="puede_reportes" type="number">`1` if this role has the REPORTES permission.</ResponseField>
+<ResponseField name="puede_aprobacion" type="number">`1` if this role has the APROBACION permission.</ResponseField>
+<ResponseField name="puede_configuracion" type="number">`1` if this role has the CONFIGURACION permission.</ResponseField>
+<ResponseField name="total_usuarios" type="number">Number of users assigned to this role.</ResponseField>
+
+```bash cURL
+curl http://localhost:3001/api/admin/roles \
+  -b cookies.txt
+```
+
+---
+
+### PUT /api/admin/roles/:id/permissions
+
+Replaces all permissions for a role. Existing permissions are deleted and the new set is inserted.
+
+#### Path parameters
+
+<ParamField path="id" type="number" required>Role ID.</ParamField>
+
+#### Request body
+
+<ParamField body="puede_pedidos" type="boolean" default="false">Grant the PEDIDOS permission.</ParamField>
+<ParamField body="puede_reportes" type="boolean" default="false">Grant the REPORTES permission.</ParamField>
+<ParamField body="puede_aprobacion" type="boolean" default="false">Grant the APROBACION permission.</ParamField>
+<ParamField body="puede_configuracion" type="boolean" default="false">Grant the CONFIGURACION permission.</ParamField>
+
+#### Response
+
+<ResponseField name="message" type="string">`"Permisos actualizados correctamente."`</ResponseField>
+
+```bash cURL
+curl -X PUT http://localhost:3001/api/admin/roles/2/permissions \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{"puede_pedidos": true, "puede_reportes": true, "puede_aprobacion": false, "puede_configuracion": false}'
+```
+
+---
+
+## Departments
+
+### GET /api/admin/departamentos
+
+Returns all departments with their current-period budget breakdown and user count. Calls `ensureCurrentDepartmentBudgets` before querying to guarantee budget records exist for the current period.
+
+#### Query parameters
+
+<ParamField query="search" type="string">Partial match on department name.</ParamField>
+
+#### Response
+
+Array of department objects.
+
+<ResponseField name="id_departamento" type="number">Department ID.</ResponseField>
+<ResponseField name="descripcion" type="string">Department name.</ResponseField>
+<ResponseField name="id_proveedor" type="string">ID of the primary rotation provider (orden\_rotacion = 1), or empty string if none.</ResponseField>
+<ResponseField name="proveedor" type="string">Primary provider name. Falls back to `"Sin proveedor"`.</ResponseField>
+<ResponseField name="total_usuarios" type="number">Number of users assigned to this department.</ResponseField>
+<ResponseField name="presupuestos" type="array">
+  Current-period budget breakdown per group.
+  <Expandable title="presupuestos item">
+    <ResponseField name="id_grupo_presupuesto" type="number">Budget group ID.</ResponseField>
+    <ResponseField name="descripcion_grupo" type="string">Budget group name.</ResponseField>
+    <ResponseField name="monto_autorizado" type="number">Authorized amount for this group.</ResponseField>
+    <ResponseField name="monto_ejecutado" type="number">Amount spent this period.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+```bash cURL
+curl http://localhost:3001/api/admin/departamentos \
+  -b cookies.txt
+```
+
+---
+
+### POST /api/admin/departamentos
+
+Creates a new department. Optionally assigns a primary provider rotation and initializes budget records.
+
+#### Request body
+
+<ParamField body="descripcion" type="string" required>Department name. Must be unique (duplicate names return `400`).</ParamField>
+<ParamField body="id_proveedor" type="number">Primary provider ID for the rotation (`departamento_proveedores_rotacion`, `orden_rotacion = 1`).</ParamField>
+<ParamField body="presupuestos" type="array">
+  Initial budget records for the current period.
+  <Expandable title="presupuestos item">
+    <ParamField body="id_grupo_presupuesto" type="number" required>Budget group ID.</ParamField>
+    <ParamField body="monto_autorizado" type="number" required>Authorized budget amount. Must be `>= 0`.</ParamField>
+  </Expandable>
+</ParamField>
+
+#### Response
+
+<ResponseField name="id_departamento" type="number">ID of the newly created department.</ResponseField>
+<ResponseField name="message" type="string">`"Departamento creado correctamente."`</ResponseField>
+
+```bash cURL
+curl -X POST http://localhost:3001/api/admin/departamentos \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{"descripcion": "Marketing", "id_proveedor": 3, "presupuestos": [{"id_grupo_presupuesto": 1, "monto_autorizado": 500}]}'
+```
+
+---
+
+### PUT /api/admin/departamentos/:id
+
+Updates a department's name, primary provider rotation, and/or budget records. All fields are optional — only the fields provided are updated.
+
+#### Path parameters
+
+<ParamField path="id" type="number" required>Department ID.</ParamField>
+
+#### Request body
+
+<ParamField body="descripcion" type="string">New department name. Cannot be blank if provided.</ParamField>
+<ParamField body="id_proveedor" type="number">New primary provider ID. Replaces the existing rotation record.</ParamField>
+<ParamField body="presupuestos" type="array">
+  Budget updates (upsert — creates if absent, updates if exists).
+  <Expandable title="presupuestos item">
+    <ParamField body="id_grupo_presupuesto" type="number" required>Budget group ID.</ParamField>
+    <ParamField body="monto_autorizado" type="number" required>New authorized amount.</ParamField>
+  </Expandable>
+</ParamField>
+
+#### Response
+
+<ResponseField name="message" type="string">`"Departamento actualizado correctamente."`</ResponseField>
+
+```bash cURL
+curl -X PUT http://localhost:3001/api/admin/departamentos/5 \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{"descripcion": "Marketing Digital", "presupuestos": [{"id_grupo_presupuesto": 1, "monto_autorizado": 750}]}'
+```
+
+---
+
+### DELETE /api/admin/departamentos/:id
+
+Permanently deletes a department and its associated budget and provider rotation records.
+
+<Warning>
+  A department cannot be deleted if it has users assigned to it. The server returns `400` with a message indicating the number of users. Reassign all users to other departments before deleting.
+</Warning>
+
+#### Path parameters
+
+<ParamField path="id" type="number" required>Department ID.</ParamField>
+
+#### Response
+
+<ResponseField name="message" type="string">`"Departamento eliminado correctamente."`</ResponseField>
+
+```bash cURL
+curl -X DELETE http://localhost:3001/api/admin/departamentos/5 \
+  -b cookies.txt
+```
+
+---
+
+## Supply Access
+
+These endpoints manage which supplies are visible and orderable by each PDV or department. All require authentication and the `CONFIGURACION` permission.
+
+### GET /api/admin/supply-access/options
+
+Returns all data needed to populate the supply-access management UI: PDVs (with zone and region), departments (with primary provider), and all supplies (with type and status).
+
+#### Response
+
+<ResponseField name="pdvs" type="array">Active PDVs with id\_pdv, codigo\_centro\_costo, id\_proveedor\_principal, proveedor\_principal, zona, ciudad, region.</ResponseField>
+<ResponseField name="departamentos" type="array">All departments with id\_departamento, descripcion, id\_proveedor, proveedor\_principal.</ResponseField>
+<ResponseField name="suministros" type="array">All supplies with id\_suministro, descripcion, tipo, estado.</ResponseField>
+
+```bash cURL
+curl http://localhost:3001/api/admin/supply-access/options \
+  -b cookies.txt
+```
+
+---
+
+### GET /api/admin/supply-access/supplies
+
+Returns supplies available for a given PDV or department based on their principal provider.
+
+#### Query parameters
+
+<ParamField query="scope" type="string" required>`"pdv"` or `"departamento"`.</ParamField>
+<ParamField query="scopeId" type="number" required>ID of the PDV or department.</ParamField>
+
+#### Response
+
+Array of supply objects: `id_suministro`, `descripcion`, `tipo`, `estado`, `proveedor`, `id_proveedor_principal`, `proveedor_principal`.
+
+```bash cURL
+curl "http://localhost:3001/api/admin/supply-access/supplies?scope=pdv&scopeId=12" \
+  -b cookies.txt
+```
+
+---
+
+### GET /api/admin/supply-access/assignments
+
+Returns the list of supply IDs currently assigned to a PDV (`pdv_suministros`) or department (`departamento_suministros`).
+
+#### Query parameters
+
+<ParamField query="scope" type="string" required>`"pdv"` or `"departamento"`.</ParamField>
+<ParamField query="scopeId" type="number" required>ID of the PDV or department.</ParamField>
+
+#### Response
+
+<ResponseField name="scope" type="string">The scope value passed in the request.</ResponseField>
+<ResponseField name="scopeId" type="number">The scope ID passed in the request.</ResponseField>
+<ResponseField name="supplyIds" type="array">Array of supply IDs currently assigned.</ResponseField>
+
+```bash cURL
+curl "http://localhost:3001/api/admin/supply-access/assignments?scope=pdv&scopeId=12" \
+  -b cookies.txt
+```
+
+---
+
+### PUT /api/admin/supply-access/assignments
+
+Replaces the full set of supply assignments for a PDV or department. Existing assignments are deleted and the new list is inserted atomically.
+
+<Warning>
+  For PDV scope, supplies must belong to the PDV's principal provider catalog. Supplies from other providers are rejected with `400`.
+</Warning>
+
+#### Request body
+
+<ParamField body="scope" type="string" required>`"pdv"` or `"departamento"`.</ParamField>
+<ParamField body="scopeId" type="number" required>ID of the PDV or department.</ParamField>
+<ParamField body="supplyIds" type="array" required>Array of supply IDs to assign. Duplicates are removed automatically. Send an empty array to remove all assignments.</ParamField>
+
+#### Response
+
+<ResponseField name="message" type="string">`"Asignaciones de suministros actualizadas correctamente."`</ResponseField>
+<ResponseField name="scope" type="string">Scope used.</ResponseField>
+<ResponseField name="scopeId" type="number">Scope ID updated.</ResponseField>
+<ResponseField name="totalAssigned" type="number">Number of supplies assigned after the update.</ResponseField>
+
+```bash cURL
+curl -X PUT http://localhost:3001/api/admin/supply-access/assignments \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{"scope": "pdv", "scopeId": 12, "supplyIds": [5, 7, 11]}'
+```
+
+---
+
+### GET /api/admin/supply-access/export
+
+Exports supply assignments for all PDVs (or a filtered subset by region) to an Excel workbook. Each PDV gets its own worksheet tab showing assigned supplies with prices.
+
+#### Query parameters
+
+<ParamField query="region" type="string">Region name filter (exact match). If omitted, all PDVs are included.</ParamField>
+
+#### Response
+
+Binary Excel file stream.
+
+- **Content-Type:** `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`
+- **Content-Disposition:** `attachment; filename="permisos_suministros_pdv_{region}_{date}.xlsx"`
+
+Each worksheet tab contains: PDV metadata (code, zone, region, principal provider) and a table of assigned supplies (Suministro, Tipo, Proveedor, Precio).
+
+```bash cURL
+curl "http://localhost:3001/api/admin/supply-access/export?region=Sierra%20Norte" \
+  -b cookies.txt \
+  -o permisos_sierra.xlsx
+```
+
+---
+
+## Health Check
+
+### GET /api/health
+
+Returns server status. Does **not** require authentication. Useful for load balancer health checks and deployment verification.
+
+#### Response
+
+<ResponseField name="status" type="string">Always `"ok"` when the server is running.</ResponseField>
+<ResponseField name="timestamp" type="string">Current server timestamp in ISO 8601 format.</ResponseField>
+
+```bash cURL
+curl http://localhost:3001/api/health
+```
+
+```json Response
+{
+  "status": "ok",
+  "timestamp": "2026-03-25T14:30:00.000Z"
+}
+```

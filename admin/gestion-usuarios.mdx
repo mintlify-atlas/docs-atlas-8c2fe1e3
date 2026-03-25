@@ -1,0 +1,142 @@
+---
+title: "Gestión de usuarios"
+description: "Crea, edita y administra los usuarios del sistema de distribución de suministros. Requiere el permiso CONFIGURACION."
+---
+
+Desde esta sección puedes gestionar todos los usuarios del sistema: crear cuentas nuevas, modificar datos, asignar roles y departamentos, y activar o desactivar el acceso.
+
+<Note>
+  El panel administrativo obtiene los datos de referencia al iniciar mediante el endpoint `GET /admin/meta`. Esto carga en memoria las listas de: departamentos, roles, categorías, estadosSuministro, proveedores, zonasComerciales, ciudades, gruposPdvs, estadosPdvs, supervisores, regiones y gruposPresupuesto. Estos valores se usan para poblar los selectores de todos los formularios del panel.
+</Note>
+
+## Requisito de acceso
+
+Todas las rutas bajo `/admin` están protegidas por el middleware `requireAdminAccess`. Este middleware verifica que el usuario autenticado tenga el permiso **CONFIGURACION** activo en su rol, consultando la vista `v_rol_permisos`. Si el usuario no está activo o no tiene ese permiso, el servidor devuelve `403 Forbidden`.
+
+## Métricas del panel
+
+El endpoint `GET /admin/overview` devuelve un resumen rápido del estado del sistema:
+
+| Campo | Descripción |
+| --- | --- |
+| `totalUsers` | Total de usuarios registrados |
+| `activeUsers` | Usuarios con `activo = 1` |
+| `totalSupplies` | Total de suministros en el catálogo |
+| `lowStockSupplies` | Suministros con stock total ≤ 10 (suma por proveedor en `suministro_proveedor_stock`) |
+
+## Lista de usuarios
+
+El endpoint `GET /admin/users` devuelve todos los usuarios junto con su rol. Puedes filtrar los resultados con los siguientes parámetros de consulta:
+
+| Parámetro | Descripción |
+| --- | --- |
+| `search` | Búsqueda parcial por `nombres`, `email` o `login` |
+| `role` | Filtra por `id_rol` |
+| `status` | `active` para usuarios activos, `inactive` para inactivos |
+
+La respuesta incluye: `id_usuario`, `nombres`, `login`, `email`, `id_rol`, `id_departamento`, `rol` (descripción), `activo` y `fecha_registro`.
+
+## Campos de usuario
+
+| Campo | Tipo | Obligatorio | Notas |
+| --- | --- | --- | --- |
+| `nombres` | string | Sí | Nombre completo del usuario |
+| `login` | string | Sí | Nombre de usuario para iniciar sesión |
+| `email` | string | Sí | Correo electrónico |
+| `id_rol` | integer | Sí | Rol asignado (ver lista de roles) |
+| `id_departamento` | integer | Sí | Departamento al que pertenece |
+| `password` | string | Al crear | Contraseña en texto plano; el sistema aplica hash con bcrypt (12 rondas) |
+| `activo` | boolean | Al editar | `true` para activar, `false` para desactivar |
+
+## Crear un usuario
+
+<Steps>
+  <Step title="Abrir el formulario de nuevo usuario">
+    En la sección **Gestión de usuarios**, haz clic en **Nuevo usuario**. Se abrirá el formulario de creación.
+  </Step>
+  <Step title="Completar los datos">
+    Rellena todos los campos obligatorios: **Nombres**, **Login**, **Email**, **Rol**, **Departamento** y **Contraseña**. Todos son requeridos al crear (`POST /admin/users`).
+  </Step>
+  <Step title="Guardar">
+    Haz clic en **Guardar**. El sistema crea el usuario con `activo = 1` y devuelve el `id_usuario` asignado. La contraseña se almacena como hash bcrypt; nunca se guarda en texto plano.
+  </Step>
+</Steps>
+
+## Editar un usuario existente
+
+<Steps>
+  <Step title="Seleccionar el usuario">
+    En la tabla de usuarios, haz clic en el botón de edición del registro que deseas modificar.
+  </Step>
+  <Step title="Modificar los datos">
+    Actualiza los campos que necesites. Los campos `id_rol` y `id_departamento` son obligatorios. Los demás (`nombres`, `email`, `activo`) son opcionales en la edición — si los omites, el servidor conserva los valores actuales.
+  </Step>
+  <Step title="Contraseña (opcional)">
+    Si dejas el campo **Contraseña** vacío, el sistema **no modifica la contraseña existente**. Solo envía una contraseña nueva si deseas cambiarla (`PUT /admin/users/:id`).
+  </Step>
+  <Step title="Guardar los cambios">
+    Haz clic en **Actualizar**. El servidor aplica los cambios e informa el resultado.
+  </Step>
+</Steps>
+
+## Activar o desactivar un usuario
+
+Puedes cambiar el estado de un usuario sin editar el resto de sus datos usando el endpoint `PATCH /admin/users/:id/status`.
+
+El cuerpo de la solicitud debe incluir el campo `activo` como booleano:
+
+```json
+{ "activo": false }
+```
+
+Un usuario desactivado no puede iniciar sesión aunque su cuenta exista en la base de datos.
+
+## Eliminar un usuario
+
+<Warning>
+  Eliminar un usuario es **permanente**. La operación ejecuta `DELETE FROM usuarios WHERE id_usuario = ?` directamente en la base de datos y no puede deshacerse. Considera desactivar el usuario (`activo = false`) en lugar de eliminarlo si necesitas conservar el historial de pedidos u otras referencias.
+</Warning>
+
+## Gestión de departamentos
+
+Los departamentos también se administran desde el panel administrativo mediante los endpoints `GET/POST/PUT/DELETE /api/admin/departamentos`.
+
+### Campos de un departamento
+
+| Campo | Descripción |
+|---|---|
+| `descripcion` | Nombre del departamento (único, obligatorio) |
+| `id_proveedor` | Proveedor principal de la rotación (orden 1) |
+| `presupuestos` | Lista de montos autorizados por grupo de presupuesto para el período actual |
+
+<Steps>
+  <Step title="Crear un departamento">
+    Envía `POST /api/admin/departamentos` con el nombre, el proveedor principal opcional y los montos de presupuesto iniciales por grupo. Los registros de presupuesto se crean para el período actual (año y mes).
+  </Step>
+  <Step title="Editar un departamento">
+    Usa `PUT /api/admin/departamentos/:id`. Solo los campos enviados se actualizan; los presupuestos se actualizan mediante upsert.
+  </Step>
+  <Step title="Eliminar un departamento">
+    Usa `DELETE /api/admin/departamentos/:id`. El sistema **bloquea la eliminación** si el departamento tiene usuarios asignados. Primero reasigna todos los usuarios a otro departamento.
+  </Step>
+</Steps>
+
+<Note>
+  Los presupuestos por grupo (`grupos_presupuesto`) permiten que un departamento tenga presupuestos separados por categoría de suministros (por ejemplo, un cupo para Oficina y otro para Limpieza). El administrador puede actualizar estos montos por período desde la gestión de departamentos.
+</Note>
+
+## Gestión de acceso a suministros
+
+El sistema controla qué suministros puede ver y pedir cada PDV o departamento. Esta configuración se gestiona mediante los endpoints `/api/admin/supply-access/`.
+
+| Acción | Endpoint |
+|---|---|
+| Ver opciones disponibles (PDVs, departamentos, suministros) | `GET /api/admin/supply-access/options` |
+| Ver suministros del proveedor principal de un PDV/departamento | `GET /api/admin/supply-access/supplies?scope=pdv&scopeId=12` |
+| Consultar asignaciones actuales | `GET /api/admin/supply-access/assignments?scope=pdv&scopeId=12` |
+| Actualizar asignaciones (reemplaza la lista completa) | `PUT /api/admin/supply-access/assignments` |
+| Exportar asignaciones a Excel por región | `GET /api/admin/supply-access/export?region=Sierra%20Norte` |
+
+<Warning>
+  `PUT /api/admin/supply-access/assignments` reemplaza **toda** la lista de asignaciones. Para PDV, solo se pueden asignar suministros que pertenezcan al proveedor principal del PDV; los suministros de otros proveedores son rechazados.
+</Warning>

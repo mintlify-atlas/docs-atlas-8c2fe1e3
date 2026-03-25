@@ -1,0 +1,52 @@
+---
+title: "Confirmación del pedido"
+description: "Qué ocurre después de enviar un pedido: registro, generación de CSV, notificación por email y seguimiento."
+---
+
+Cuando haces clic en **Realizar Pedido** y todas las validaciones del servidor son exitosas, el sistema ejecuta el siguiente flujo de forma automática.
+
+<Steps>
+  <Step title="El servidor valida todos los ítems y recalcula precios">
+    Antes de registrar el pedido, el servidor verifica el PDV, la ventana de pedidos, los permisos de cada suministro y recalcula todos los precios desde la base de datos. Los precios enviados por el navegador son descartados.
+  </Step>
+
+  <Step title="El pedido queda registrado en la base de datos">
+    Se crea un registro en `cabecera_pedidos` con estado **Pendiente** y se insertan los detalles en `detalle_pedidos` con los precios recalculados. El cupo del PDV (o el presupuesto del departamento) se descuenta de forma inmediata en la misma transacción.
+
+    | Campo del pedido | Valor |
+    |------------------|-------|
+    | **ID de pedido** | Identificador único generado automáticamente (`id_pedido`) |
+    | **Estado inicial** | Pendiente |
+    | **Fecha** | Fecha del servidor al momento del envío |
+    | **Detalles** | Un registro por cada ítem: suministro, cantidad y precio unitario recalculado |
+  </Step>
+
+  <Step title="Se genera un archivo CSV con el detalle del pedido">
+    El sistema crea un archivo CSV con nombre `pedidoSuministro_{usuario}_{fecha}.csv`. El archivo incluye:
+
+    - Encabezado con datos del solicitante: nombre, origen (PDV o departamento), ciudad, dirección y cupo/presupuesto disponible
+    - Una fila por suministro con: descripción, tipo, cantidad, precio unitario y total
+    - Subtotales al pie: Total Suministros de Oficina, Total Suministros de Limpieza y Total General
+  </Step>
+
+  <Step title="Se envía un correo electrónico automático al equipo responsable">
+    Si el envío de correo está habilitado en la configuración del servidor (`MAIL_ENABLED=true`), se envía un email con el CSV adjunto al equipo de suministros. El asunto del correo es `Pedido de Suministro`.
+
+    Si el envío falla por un error de conexión con el servidor de correo, el pedido **ya está registrado** en la base de datos y el cupo **ya fue descontado**. El error de email no revierte la operación.
+  </Step>
+
+  <Step title="El usuario es redirigido a la pantalla de confirmación">
+    La respuesta del servidor indica si el correo fue enviado o no. La pantalla de confirmación muestra:
+
+    - El ID del pedido registrado
+    - Un mensaje de éxito: `"Su requerimiento ha sido enviado."` si el email se envió, o `"Pedido registrado correctamente."` si no se pudo enviar el correo
+  </Step>
+</Steps>
+
+<Note>
+  El pedido queda registrado en el sistema independientemente de si el correo fue enviado. Si la pantalla indica que el email no se envió, el aprobador podrá ver el pedido igualmente en el módulo de **Aprobaciones**.
+</Note>
+
+<Tip>
+  Para consultar el estado de tu pedido después del envío, ve a la sección **Mis Pedidos** en el menú lateral. Allí puedes filtrar por ID, fecha, monto y estado, y ver el detalle completo de cada solicitud incluyendo observaciones de aprobación o el motivo de rechazo.
+</Tip>

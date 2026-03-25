@@ -1,0 +1,140 @@
+---
+title: "Configuración de base de datos"
+description: "Scripts SQL para inicializar el esquema, cargar datos iniciales y aplicar migraciones en MySQL o MariaDB."
+---
+
+Todos los scripts SQL se encuentran en la carpeta `BASEDEDATOS/` del repositorio. El motor de base de datos debe ser **MySQL 8.0+** o **MariaDB**.
+
+## Descripción de los archivos
+
+| Archivo | Propósito |
+|---|---|
+| `db_supplychain.sql` | Crea el esquema completo: tablas, vistas, procedimientos almacenados y triggers. |
+| `db_supplychainInsert.sql` | Inserta los datos iniciales: roles, permisos, estados de pedidos, tipos de suministros, etc. |
+| `Dump20260312.sql` | Volcado completo de la base de datos (esquema + datos). Alternativa a los dos archivos anteriores. |
+| `ejecucion_completa.sql` | Script de conveniencia que ejecuta `db_supplychain.sql` y `db_supplychainInsert.sql` en un solo paso. |
+| `migracion_cupos_presupuesto.sql` | Agrega el seguimiento de cupos por PDV y presupuesto ejecutado por departamento. |
+| `migracion_estado_suministro_por_proveedor.sql` | Agrega la tabla `departamento_proveedores_rotacion` para asignación de proveedor por rotación mensual. |
+| `migracion_recarga_automatica_presupuesto.sql` | Agrega la lógica de recarga automática de presupuestos al inicio de cada periodo. |
+| `agregar_ventana_pedidos.sql` | Agrega las columnas `dias_inicio_ventana` y `dias_fin_ventana` a departamentos y la tabla de ventanas por zona comercial. |
+
+## Instalación desde cero
+
+Usa este flujo si la base de datos aún no existe.
+
+<Steps>
+  <Step title="Crear la base de datos y el usuario">
+    Conéctate a MySQL como `root` y crea la base de datos y el usuario que usará el backend:
+
+    ```sql
+    CREATE DATABASE DB_SupplyChain CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+    CREATE USER 'dbSystemSC'@'%' IDENTIFIED BY 'TU_CONTRASEÑA';
+    GRANT ALL PRIVILEGES ON DB_SupplyChain.* TO 'dbSystemSC'@'%';
+    GRANT EXECUTE ON DB_SupplyChain.* TO 'dbSystemSC'@'%';
+    FLUSH PRIVILEGES;
+    ```
+
+    El permiso `EXECUTE` es necesario para los procedimientos almacenados `sp_aprobar_pedido` y `sp_actualizar_precio`.
+  </Step>
+
+  <Step title="Cargar el esquema y los datos iniciales">
+    <CodeGroup>
+      ```bash Script único (recomendado)
+      mysql -u root -p DB_SupplyChain < BASEDEDATOS/ejecucion_completa.sql
+      ```
+
+      ```bash Archivos individuales (en orden)
+      mysql -u root -p DB_SupplyChain < BASEDEDATOS/db_supplychain.sql
+      mysql -u root -p DB_SupplyChain < BASEDEDATOS/db_supplychainInsert.sql
+      ```
+
+      ```bash Desde volcado completo
+      mysql -u root -p DB_SupplyChain < BASEDEDATOS/Dump20260312.sql
+      ```
+    </CodeGroup>
+  </Step>
+
+  <Step title="Aplicar todas las migraciones">
+    Ejecuta los scripts de migración en el siguiente orden:
+
+    ```bash
+    mysql -u root -p DB_SupplyChain < BASEDEDATOS/migracion_cupos_presupuesto.sql
+    mysql -u root -p DB_SupplyChain < BASEDEDATOS/migracion_estado_suministro_por_proveedor.sql
+    mysql -u root -p DB_SupplyChain < BASEDEDATOS/migracion_recarga_automatica_presupuesto.sql
+    mysql -u root -p DB_SupplyChain < BASEDEDATOS/agregar_ventana_pedidos.sql
+    ```
+
+    Los scripts de migración están escritos con `IF NOT EXISTS` y verificaciones de columna, por lo que son seguros de ejecutar aunque ya estén aplicados.
+  </Step>
+
+  <Step title="Verificar la instalación">
+    Conéctate a la base de datos y comprueba que los objetos principales existen:
+
+    ```sql
+    USE DB_SupplyChain;
+    SHOW TABLES;
+    SHOW PROCEDURE STATUS WHERE Db = 'DB_SupplyChain';
+    ```
+
+    Debes ver tablas como `usuarios`, `departamentos`, `suministros`, `cabecera_pedidos`, `detalle_pedidos`, y los procedimientos `sp_aprobar_pedido` y `sp_actualizar_precio`.
+  </Step>
+</Steps>
+
+## Aplicar migraciones a una instalación existente
+
+Si ya tienes la base de datos en producción y necesitas aplicar actualizaciones de esquema:
+
+<Warning>
+  Realiza siempre un respaldo completo de la base de datos antes de ejecutar cualquier script de migración en producción.
+
+  ```bash
+  mysqldump -u root -p DB_SupplyChain > backup_$(date +%Y%m%d_%H%M%S).sql
+  ```
+</Warning>
+
+<Steps>
+  <Step title="Identificar qué migraciones faltan">
+    Compara el esquema actual con los scripts disponibles. Puedes verificar si una columna o tabla ya existe antes de aplicar el script:
+
+    ```sql
+    -- Verificar si cupo_disponible ya existe en pdvs
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = 'DB_SupplyChain'
+      AND TABLE_NAME = 'pdvs'
+      AND COLUMN_NAME = 'cupo_disponible';
+
+    -- Verificar si la tabla de rotación existe
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+    WHERE TABLE_SCHEMA = 'DB_SupplyChain'
+      AND TABLE_NAME = 'departamento_proveedores_rotacion';
+    ```
+  </Step>
+
+  <Step title="Ejecutar los scripts pendientes">
+    Aplica únicamente los scripts que corresponden a funcionalidades no presentes en el esquema actual:
+
+    ```bash
+    # Cupos por PDV y presupuesto ejecutado
+    mysql -u root -p DB_SupplyChain < BASEDEDATOS/migracion_cupos_presupuesto.sql
+
+    # Rotación de proveedor por mes
+    mysql -u root -p DB_SupplyChain < BASEDEDATOS/migracion_estado_suministro_por_proveedor.sql
+
+    # Recarga automática de presupuestos
+    mysql -u root -p DB_SupplyChain < BASEDEDATOS/migracion_recarga_automatica_presupuesto.sql
+
+    # Ventana de pedidos por departamento y zona
+    mysql -u root -p DB_SupplyChain < BASEDEDATOS/agregar_ventana_pedidos.sql
+    ```
+  </Step>
+</Steps>
+
+## Procedimientos almacenados
+
+El sistema utiliza procedimientos almacenados para las operaciones críticas de negocio:
+
+| Procedimiento | Descripción |
+|---|---|
+| `sp_aprobar_pedido(id_pedido, id_usuario_aprobador, observaciones)` | Valida el stock, cambia el estado del pedido a "Aprobado" y registra el aprobador. Toda la operación ocurre en una transacción. |
+| `sp_actualizar_precio(id_suministro, nuevo_precio, id_proveedor)` | Cierra el precio vigente anterior y registra el nuevo precio con fecha de vigencia. |

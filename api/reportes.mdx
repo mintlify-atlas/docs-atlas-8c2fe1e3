@@ -1,0 +1,197 @@
+---
+title: 'Reports (Reportes)'
+description: 'Paginated order reports and Excel export with per-item detail.'
+---
+
+<Info>
+  Both endpoints require an active session. The Excel endpoint streams the file directly — do not parse the response as JSON.
+</Info>
+
+Reports return **one row per line item**, not one row per order. A single order with three items will produce three rows in both the JSON and Excel responses.
+
+---
+
+## GET /api/reportes/pedidos
+
+Returns a paginated list of order line items. Pagination is applied at the order level (distinct orders), then all items for those orders are returned, so the number of rows in `data` may exceed `limit`.
+
+### Query parameters
+
+<ParamField query="page" type="number" default="1">
+  Page number (1-indexed). Pagination is over distinct orders.
+</ParamField>
+
+<ParamField query="limit" type="number" default="30">
+  Maximum number of **distinct orders** per page. Hard cap of `100`.
+</ParamField>
+
+<ParamField query="mes" type="number">
+  Month number (1–12). Only applied if `anio` is also provided.
+</ParamField>
+
+<ParamField query="anio" type="number">
+  Year (e.g., `2026`). When provided without `mes`, filters the entire year.
+</ParamField>
+
+<ParamField query="fechaDesde" type="string">
+  Start datetime filter (inclusive). Compared against `cabecera_pedidos.fecha_registro`. Format: `YYYY-MM-DD` or `YYYY-MM-DD HH:mm:ss`.
+</ParamField>
+
+<ParamField query="fechaHasta" type="string">
+  End datetime filter (inclusive). Same format as `fechaDesde`.
+</ParamField>
+
+<ParamField query="pdv" type="number">
+  Filter by PDV ID.
+</ParamField>
+
+<ParamField query="estado" type="number">
+  Filter by order status ID.
+</ParamField>
+
+<ParamField query="tipoSuministro" type="number">
+  Filter to only orders that contain at least one item of this supply type. In the response, only rows matching this type are returned.
+</ParamField>
+
+<ParamField query="usuario" type="string">
+  Partial match on the user's login.
+</ParamField>
+
+### Response
+
+<ResponseField name="data" type="array">
+  One entry per order line item.
+  <Expandable title="data item fields">
+    <ResponseField name="pedidoId" type="number">Order ID.</ResponseField>
+    <ResponseField name="fecha" type="string">Order date (`YYYY-MM-DD`).</ResponseField>
+    <ResponseField name="usuarioLogin" type="string">Login of the user who placed the order.</ResponseField>
+    <ResponseField name="usuarioNombre" type="string">Full name of the user.</ResponseField>
+    <ResponseField name="departamento" type="string">Department name. Falls back to `"Sin departamento"`.</ResponseField>
+    <ResponseField name="pdvNombre" type="string">PDV cost center code. `"N/A"` for department orders.</ResponseField>
+    <ResponseField name="ciudad" type="string">City of the PDV. Empty string for department orders.</ResponseField>
+    <ResponseField name="region" type="string">Region of the PDV. Empty string for department orders.</ResponseField>
+    <ResponseField name="supervisor" type="string">PDV supervisor name. Empty string for department orders.</ResponseField>
+    <ResponseField name="codigoZona" type="string">Commercial zone code.</ResponseField>
+    <ResponseField name="estado" type="string">Order status description.</ResponseField>
+    <ResponseField name="tipoSuministro" type="string">Supply type name.</ResponseField>
+    <ResponseField name="suministro" type="string">Supply name.</ResponseField>
+    <ResponseField name="proveedor" type="string">Supplier name. Falls back to `"Sin proveedor"`.</ResponseField>
+    <ResponseField name="cantidad" type="number">Quantity ordered.</ResponseField>
+    <ResponseField name="precioUnitario" type="number">Unit price at time of order.</ResponseField>
+    <ResponseField name="subtotal" type="number">`cantidad × precioUnitario`.</ResponseField>
+    <ResponseField name="observacionesAprobacion" type="string">Approver notes, if any.</ResponseField>
+    <ResponseField name="motivoRechazo" type="string">Rejection reason, if applicable.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="total" type="number">Total number of distinct orders matching the filters.</ResponseField>
+<ResponseField name="page" type="number">Current page.</ResponseField>
+<ResponseField name="limit" type="number">Orders per page.</ResponseField>
+<ResponseField name="totalPages" type="number">Total pages.</ResponseField>
+
+### Example
+
+```bash cURL
+curl "http://localhost:3001/api/reportes/pedidos?anio=2026&mes=3&estado=2&page=1&limit=30" \
+  -b cookies.txt
+```
+
+```json Response
+{
+  "data": [
+    {
+      "pedidoId": 471,
+      "fecha": "2026-03-01",
+      "usuarioLogin": "jperez",
+      "usuarioNombre": "Juan Pérez",
+      "departamento": "Ventas",
+      "pdvNombre": "PDV-NORTE-001",
+      "ciudad": "Quito",
+      "region": "Sierra Norte",
+      "supervisor": "Carlos Mora",
+      "codigoZona": "ZN01",
+      "estado": "Aprobado",
+      "tipoSuministro": "Oficina",
+      "suministro": "Papel A4",
+      "proveedor": "Distribuidora Norte",
+      "cantidad": 2,
+      "precioUnitario": 12.50,
+      "subtotal": 25.00,
+      "observacionesAprobacion": null,
+      "motivoRechazo": null
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "limit": 30,
+  "totalPages": 1
+}
+```
+
+---
+
+## GET /api/reportes/pedidos/excel
+
+Exports order line items as an Excel workbook (`.xlsx`). Supports the same filters as the JSON endpoint, plus an optional `campos` parameter for custom column selection.
+
+<Warning>
+  This endpoint returns a binary Excel file, not JSON. Set `Content-Type: application/json` on the request but handle the response as a file download (`application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`).
+</Warning>
+
+The workbook includes:
+- A styled title row and subtitle row with applied filter summary.
+- Alternating row colors per order group.
+- Per-order subtotal rows (when `subtotal` column is included).
+- A grand total row at the bottom.
+- Auto-filters on all header columns.
+- Frozen header row.
+
+### Query parameters
+
+Accepts all the same parameters as `GET /api/reportes/pedidos`, plus:
+
+<ParamField query="campos" type="string">
+  Comma-separated list of field IDs to include in the export. When omitted, all columns are exported. Order in the string determines column order in the file.
+
+  Available field IDs:
+
+  | Field ID | Column header | Type |
+  |----------|---------------|------|
+  | `pedidoId` | Pedido # | text |
+  | `fecha` | Fecha | date (`mm/dd/yyyy`) |
+  | `region` | Region | text |
+  | `usuarioNombre` | Usuario | text |
+  | `departamento` | Departamento | text |
+  | `pdvNombre` | PDV | text |
+  | `ciudad` | Ciudad | text |
+  | `supervisor` | Supervisor | text |
+  | `codigoZona` | Código Zona | text |
+  | `estado` | Estado | text |
+  | `tipoSuministro` | Tipo Suministro | text |
+  | `suministro` | Suministro | text |
+  | `proveedor` | Proveedor | text |
+  | `cantidad` | Cantidad | integer |
+  | `precioUnitario` | P. Unitario ($) | currency (`$#,##0.00`) |
+  | `subtotal` | Subtotal ($) | currency (`$#,##0.00`) |
+</ParamField>
+
+### Response
+
+Binary Excel file stream.
+
+- **Content-Type:** `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`
+- **Content-Disposition:** `attachment; filename="reporte_pedidos_YYYY-MM-DD.xlsx"` (or `reporte_personalizado_YYYY-MM-DD.xlsx` when `campos` is specified)
+
+### Examples
+
+```bash Full export
+curl "http://localhost:3001/api/reportes/pedidos/excel?anio=2026&mes=3" \
+  -b cookies.txt \
+  -o reporte_marzo_2026.xlsx
+```
+
+```bash Custom columns
+curl "http://localhost:3001/api/reportes/pedidos/excel?anio=2026&campos=fecha,pdvNombre,suministro,cantidad,subtotal" \
+  -b cookies.txt \
+  -o reporte_personalizado.xlsx
+```

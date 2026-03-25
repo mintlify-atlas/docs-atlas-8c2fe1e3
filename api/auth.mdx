@@ -1,0 +1,337 @@
+---
+title: 'Authentication'
+description: 'Session-based authentication endpoints for the Farmcorp supply distribution system.'
+---
+
+<Info>
+  All endpoints in this API use **express-session** cookies for authentication. After a successful login, the browser stores a `connect.sid` session cookie that must be sent with every subsequent request.
+</Info>
+
+## Overview
+
+The system supports two authentication modes controlled by the `AUTH_MODE` environment variable:
+
+- `AUTH_MODE=local` — Validates credentials against the `usuarios` table in the database. Used for testing environments.
+- `AUTH_MODE=ldap` — Validates against Active Directory. Used in production. New users are automatically provisioned on first login.
+
+Base URL: `http://localhost:3001` (configurable via `PORT` env var)
+
+---
+
+## POST /api/auth/login
+
+Authenticates a user and creates a session. Does **not** require an existing session.
+
+<Note>
+  The `departmentId` sent in the body must match the user's actual assigned department in the system. If it does not match, the request is rejected with `403` and the correct department name is returned in the error message.
+</Note>
+
+### Request body
+
+<ParamField body="username" type="string" required>
+  Network login name (case-insensitive, whitespace-trimmed).
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  User password. In `local` mode, bcrypt hashes are compared. Plain-text legacy passwords are auto-upgraded to bcrypt on first successful login.
+</ParamField>
+
+<ParamField body="departmentId" type="number" required>
+  ID of the department the user is logging in under. Must match the user's assigned department.
+</ParamField>
+
+### Response
+
+<ResponseField name="message" type="string">
+  Confirmation message. Value is `"Login exitoso (modo local)"` in local mode or `"Login exitoso"` in LDAP mode.
+</ResponseField>
+
+<ResponseField name="user" type="object">
+  Authenticated user data.
+  <Expandable title="user properties">
+    <ResponseField name="login" type="string">
+      Network login name.
+    </ResponseField>
+    <ResponseField name="nombre" type="string">
+      Full display name.
+    </ResponseField>
+    <ResponseField name="departamento" type="number">
+      ID of the user's assigned department.
+    </ResponseField>
+    <ResponseField name="departmentName" type="string">
+      Human-readable department name.
+    </ResponseField>
+    <ResponseField name="departmentBudget" type="number">
+      Remaining available budget across all active budget groups (sum of `monto_autorizado - monto_ejecutado` for each group).
+    </ResponseField>
+    <ResponseField name="departmentBudgets" type="array">
+      Per-group budget breakdown.
+      <Expandable title="departmentBudgets item">
+        <ResponseField name="id_grupo_presupuesto" type="number">
+          Budget group ID.
+        </ResponseField>
+        <ResponseField name="descripcion" type="string">
+          Budget group name.
+        </ResponseField>
+        <ResponseField name="monto_autorizado" type="number">
+          Authorized budget amount for this group.
+        </ResponseField>
+        <ResponseField name="monto_ejecutado" type="number">
+          Amount already spent this period.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="roleId" type="number">
+      Role ID assigned to the user.
+    </ResponseField>
+    <ResponseField name="roleName" type="string">
+      Role display name.
+    </ResponseField>
+    <ResponseField name="permissions" type="object">
+      Boolean flags for each feature area.
+      <Expandable title="permissions properties">
+        <ResponseField name="pedidos" type="boolean">
+          Can submit supply orders.
+        </ResponseField>
+        <ResponseField name="reportes" type="boolean">
+          Can view reports.
+        </ResponseField>
+        <ResponseField name="aprobacion" type="boolean">
+          Can approve or reject orders.
+        </ResponseField>
+        <ResponseField name="configuracion" type="boolean">
+          Can access the admin panel.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Error responses
+
+| Status | Condition |
+|--------|-----------|
+| `400` | Missing `username`, `password`, or `departmentId` |
+| `401` | User not found or incorrect password |
+| `403` | User is deactivated, or `departmentId` does not match the user's assigned department |
+
+### Example
+
+```bash cURL
+curl -X POST http://localhost:3001/api/auth/login \
+  -H "Content-Type: application/json" \
+  -c cookies.txt \
+  -d '{"username": "jperez", "password": "secret", "departmentId": 3}'
+```
+
+```json Response
+{
+  "message": "Login exitoso",
+  "user": {
+    "login": "jperez",
+    "nombre": "Juan Pérez",
+    "departamento": 3,
+    "departmentName": "Ventas",
+    "departmentBudget": 1250.00,
+    "departmentBudgets": [
+      {
+        "id_grupo_presupuesto": 1,
+        "descripcion": "Oficina",
+        "monto_autorizado": 800.00,
+        "monto_ejecutado": 150.00
+      },
+      {
+        "id_grupo_presupuesto": 2,
+        "descripcion": "Limpieza",
+        "monto_autorizado": 700.00,
+        "monto_ejecutado": 100.00
+      }
+    ],
+    "roleId": 2,
+    "roleName": "Supervisor",
+    "permissions": {
+      "pedidos": true,
+      "reportes": true,
+      "aprobacion": false,
+      "configuracion": false
+    }
+  }
+}
+```
+
+---
+
+## POST /api/auth/logout
+
+Destroys the current session and clears the `connect.sid` cookie. Requires an active session.
+
+### Request
+
+No body required.
+
+### Response
+
+<ResponseField name="message" type="string">
+  `"Sesión cerrada correctamente."`
+</ResponseField>
+
+### Example
+
+```bash cURL
+curl -X POST http://localhost:3001/api/auth/logout \
+  -b cookies.txt
+```
+
+```json Response
+{
+  "message": "Sesión cerrada correctamente."
+}
+```
+
+---
+
+## GET /api/auth/me
+
+Verifies whether the current session is valid and returns the authenticated user's profile. Useful for restoring UI state after a page reload.
+
+<Note>
+  If the user's account has been deactivated since their last login, this endpoint destroys the session and returns `401` even if the session cookie is still present.
+</Note>
+
+### Request
+
+No parameters. Session cookie must be present.
+
+### Response — authenticated
+
+<ResponseField name="loggedin" type="boolean">
+  Always `true` for an authenticated response.
+</ResponseField>
+
+<ResponseField name="login" type="string">
+  Network login name.
+</ResponseField>
+
+<ResponseField name="nombre" type="string">
+  Full display name.
+</ResponseField>
+
+<ResponseField name="departamento" type="number">
+  Department ID.
+</ResponseField>
+
+<ResponseField name="departmentName" type="string">
+  Department name.
+</ResponseField>
+
+<ResponseField name="departmentBudget" type="number">
+  Remaining available budget (sum across all active budget groups).
+</ResponseField>
+
+<ResponseField name="departmentBudgets" type="array">
+  Per-group budget breakdown. Same structure as returned by `/api/auth/login`.
+</ResponseField>
+
+<ResponseField name="roleId" type="number">
+  Role ID.
+</ResponseField>
+
+<ResponseField name="roleName" type="string">
+  Role name.
+</ResponseField>
+
+<ResponseField name="permissions" type="object">
+  Permission flags (`pedidos`, `reportes`, `aprobacion`, `configuracion`).
+</ResponseField>
+
+### Response — unauthenticated
+
+```json 401
+{
+  "loggedin": false
+}
+```
+
+### Example
+
+```bash cURL
+curl http://localhost:3001/api/auth/me \
+  -b cookies.txt
+```
+
+```json Response
+{
+  "loggedin": true,
+  "login": "jperez",
+  "nombre": "Juan Pérez",
+  "departamento": 3,
+  "departmentName": "Ventas",
+  "departmentBudget": 1250.00,
+  "departmentBudgets": [],
+  "roleId": 2,
+  "roleName": "Supervisor",
+  "permissions": {
+    "pedidos": true,
+    "reportes": true,
+    "aprobacion": false,
+    "configuracion": false
+  }
+}
+```
+
+---
+
+## GET /api/auth/departamento/:username
+
+Looks up a user's assigned department by their login name. Does **not** require authentication. Used by the login form to pre-fill the department selector.
+
+Lookup priority:
+1. Database (`usuarios` table) — works in both `local` and `ldap` modes for existing users.
+2. Active Directory (LDAP) — only if `AUTH_MODE=ldap` and the user is not yet in the database.
+
+### Path parameters
+
+<ParamField path="username" type="string" required>
+  Network login name of the user to look up.
+</ParamField>
+
+### Response
+
+<ResponseField name="id_departamento" type="number">
+  ID of the user's assigned department.
+</ResponseField>
+
+<ResponseField name="departmentName" type="string">
+  Human-readable department name.
+</ResponseField>
+
+<ResponseField name="departmentBudget" type="number">
+  Department's authorized budget for the current period. Only included when the user exists in the database.
+</ResponseField>
+
+<ResponseField name="nombres" type="string">
+  User's full display name.
+</ResponseField>
+
+### Error responses
+
+| Status | Condition |
+|--------|-----------|
+| `400` | `username` path parameter is empty |
+| `404` | User not found in the database and `AUTH_MODE` is not `ldap`, or LDAP could not resolve a matching department |
+| `500` | LDAP or database error |
+
+### Example
+
+```bash cURL
+curl http://localhost:3001/api/auth/departamento/jperez
+```
+
+```json Response
+{
+  "id_departamento": 3,
+  "departmentName": "Ventas",
+  "departmentBudget": 1450.00,
+  "nombres": "Juan Pérez"
+}
+```

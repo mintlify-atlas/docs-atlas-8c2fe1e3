@@ -1,0 +1,128 @@
+---
+title: Ventanas de pedidos
+description: Configura los días del mes en que cada zona o departamento puede realizar pedidos de suministros.
+---
+
+El sistema controla cuándo se pueden enviar pedidos a través de **ventanas de tiempo** definidas por día del mes. Existen dos tipos de ventanas: una para PDVs (puntos de venta) agrupados por zona comercial y región, y otra global para los departamentos internos.
+
+## Tipos de ventanas
+
+### Ventanas de PDV por zona comercial
+
+Cada zona comercial puede tener una ventana de pedidos propia, almacenada en la tabla `zona_ventanas_pedido` con las columnas `dia_inicio`, `dia_fin` y `activo`. Cuando un PDV intenta hacer un pedido, el sistema consulta la ventana activa de su zona. Si no hay ventana configurada o el día actual está fuera del rango, el pedido es rechazado.
+
+La configuración se gestiona a nivel de **región**: al actualizar una región se aplica el mismo rango a todas las zonas comerciales que contienen PDVs en esa región.
+
+### Ventanas de departamento
+
+Los departamentos internos (no comerciales) utilizan una ventana global almacenada en las columnas `dias_inicio_ventana` y `dias_fin_ventana` de la tabla `departamentos`. Esta configuración aplica de forma uniforme a todos los departamentos a la vez.
+
+Si estas columnas no existen en la base de datos, el sistema asume los valores por defecto: día 1 al 3 de cada mes.
+
+## Endpoints de configuración
+
+### Consultar configuración por región
+
+```http
+GET /api/gestion/pdvs/configuracion-por-region
+```
+
+Retorna la lista de regiones con PDVs activos, incluyendo el número de zonas, la cantidad de PDVs y la ventana de pedidos actualmente configurada.
+
+**Respuesta de ejemplo:**
+
+```json
+[
+  {
+    "id_region": 2,
+    "region": "Costa",
+    "cantidad_pdvs": 48,
+    "cantidad_zonas": 6,
+    "dia_inicio": 1,
+    "dia_fin": 10,
+    "ventana_uniforme": 1,
+    "zonas": "Guayaquil Norte, Guayaquil Sur, Machala, ..."
+  }
+]
+```
+
+Cuando `ventana_uniforme` es `0`, las zonas de la región tienen rangos distintos. En ese caso, `dia_inicio` y `dia_fin` se devuelven como `null`.
+
+### Actualizar ventana de una región
+
+```http
+PUT /api/gestion/pdvs/ventana-pedidos/region/:id_region
+```
+
+**Cuerpo de la solicitud:**
+
+```json
+{
+  "dia_inicio": 1,
+  "dia_fin": 10
+}
+```
+
+**Respuesta:**
+
+```json
+{
+  "message": "Ventana de pedidos actualizada para la región.",
+  "id_region": 2,
+  "dia_inicio": 1,
+  "dia_fin": 10,
+  "zonas_actualizadas": 6
+}
+```
+
+### Actualizar ventana de todos los departamentos
+
+```http
+PUT /api/gestion/departamentos/ventana-pedidos/actualizar-todos
+```
+
+**Cuerpo de la solicitud:**
+
+```json
+{
+  "dias_inicio_ventana": 1,
+  "dias_fin_ventana": 5
+}
+```
+
+Actualiza la ventana en todos los registros de la tabla `departamentos` de forma simultánea.
+
+## Reglas de validación
+
+Ambos endpoints aplican las mismas reglas:
+
+- `dia_inicio` debe ser mayor o igual a `1`
+- `dia_fin` debe ser menor o igual a `31`
+- `dia_inicio` debe ser menor o igual a `dia_fin`
+
+Cualquier valor fuera de estos rangos devuelve un `400 Bad Request`.
+
+## Cómo actualizar la ventana de una región
+
+<Steps>
+  <Step title="Consulta la configuración actual">
+    Llama a `GET /api/gestion/pdvs/configuracion-por-region` para ver las regiones disponibles y sus ventanas actuales. Identifica el `id_region` de la región que deseas modificar.
+  </Step>
+  <Step title="Define el nuevo rango de días">
+    Decide los valores de `dia_inicio` y `dia_fin`. Por ejemplo, para habilitar pedidos del 1 al 15: `dia_inicio = 1`, `dia_fin = 15`.
+  </Step>
+  <Step title="Envía la actualización">
+    Ejecuta `PUT /api/gestion/pdvs/ventana-pedidos/region/:id_region` con el cuerpo correspondiente. La respuesta incluye el número de zonas actualizadas.
+  </Step>
+  <Step title="Verifica el cambio">
+    Vuelve a consultar `GET /api/gestion/pdvs/configuracion-por-region` y confirma que `ventana_uniforme` es `1` y los días reflejan el nuevo rango.
+  </Step>
+</Steps>
+
+<Warning>
+  Cambiar la ventana de una región surte efecto de inmediato. Todos los PDVs de esa región quedan sujetos al nuevo rango en el siguiente intento de pedido, sin importar pedidos ya iniciados.
+</Warning>
+
+<Note>
+  La región **Oriente** tiene un manejo especial: en lugar de resolverse por la ciudad del PDV, se identifica agrupando todas las zonas cuyo `codigo_zona` es igual a `'ORIENTE'` (insensible a mayúsculas). Esto aplica tanto al GET de configuración como al PUT de actualización.
+</Note>

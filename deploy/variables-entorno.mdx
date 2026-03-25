@@ -1,0 +1,90 @@
+---
+title: "Variables de entorno"
+description: "Referencia completa de todas las variables de entorno del backend. Se configuran en docker-compose.yml o en un archivo .env para ejecución directa con Node.js."
+---
+
+Todas las variables de entorno se leen al arrancar el proceso. Para Docker Compose, se definen en la sección `environment` del servicio `backend`. Para ejecución directa con Node.js, se colocan en un archivo `.env` en la raíz de `supply-backend/`.
+
+## Base de datos
+
+Conexión al servidor MySQL o MariaDB donde se aloja el esquema `DB_SupplyChain`.
+
+| Variable | Ejemplo | Descripción |
+|---|---|---|
+| `DB_HOST` | `10.101.183.40` | Hostname o dirección IP del servidor de base de datos. |
+| `DB_PORT` | `3306` | Puerto de MySQL/MariaDB. |
+| `DB_NAME` | `DB_SupplyChain` | Nombre de la base de datos. |
+| `DB_USER` | `dbSystemSC` | Usuario con acceso a la base de datos. |
+| `DB_PASS` | *(contraseña)* | Contraseña del usuario de base de datos. |
+
+## Autenticación
+
+| Variable | Valores | Descripción |
+|---|---|---|
+| `AUTH_MODE` | `local` \| `ldap` | Modo de autenticación. `local` valida contra la tabla `usuarios` en la BD (para pruebas). `ldap` valida contra Active Directory (producción). |
+
+## LDAP
+
+Requerido cuando `AUTH_MODE=ldap`. Configura la conexión al servidor de Active Directory.
+
+| Variable | Ejemplo | Descripción |
+|---|---|---|
+| `LDAP_HOST` | `ldap://SRVDCR000.farmcorp.com.ec` | URL de conexión al servidor LDAP. El código resuelve la URL del servidor como `LDAP_URL \|\| LDAP_HOST`; si defines solo `LDAP_HOST`, funciona igualmente. |
+| `LDAP_SERVICE_DN` | `src_TI_ldap@farmcorp.com.ec` | DN o UPN de la cuenta de servicio usada para realizar búsquedas en el directorio. |
+| `LDAP_SERVICE_PASS` | *(contraseña)* | Contraseña de la cuenta de servicio LDAP. |
+| `LDAP_BASE_OU` | `ou=usuarios,ou=farmcorp,dc=farmcorp,dc=com,dc=ec` | OU base desde la que se realizan las búsquedas de usuarios. |
+
+## Servidor
+
+| Variable | Ejemplo | Descripción |
+|---|---|---|
+| `PORT` | `3001` | Puerto en el que escucha el servidor Express. |
+| `NODE_ENV` | `production` | Entorno de Node.js. Usa `production` para deployments reales. |
+
+## Sesiones
+
+| Variable | Ejemplo | Descripción |
+|---|---|---|
+| `SESSION_SECRET` | `FarmcorpSupplyChain2024SecretKey` | Clave usada para firmar las cookies de sesión con `express-session`. Debe ser una cadena larga y aleatoria. |
+| `SESSION_MAX_AGE` | `28800000` | Duración máxima de la sesión en milisegundos. El valor por defecto de `28800000` equivale a 8 horas. |
+
+<Warning>
+  Cambia `SESSION_SECRET` antes de desplegar en producción. Si dos instancias del backend comparten el mismo secreto (en un escenario con balanceo de carga), las sesiones son compatibles entre ellas. Un secreto comprometido permite falsificar cookies de sesión.
+</Warning>
+
+## CORS
+
+| Variable | Ejemplo | Descripción |
+|---|---|---|
+| `CORS_ORIGIN` | `http://localhost:5173,http://172.28.32.1:5173` | Lista de orígenes del frontend autorizados a consumir la API, separados por coma. Debe incluir exactamente el protocolo, dominio y puerto que los usuarios usan para acceder al frontend. |
+
+Ejemplos de valores válidos:
+
+| Escenario | Valor |
+|---|---|
+| Desarrollo local | `http://localhost:5173` |
+| Desarrollo en red local | `http://10.101.13.149:5173` |
+| Múltiples orígenes | `http://localhost:5173,http://127.0.0.1:5173` |
+| Producción con HTTPS | `https://suministros.farmcorp.com.ec` |
+
+## Email
+
+Configura el transporte de correo electrónico (Nodemailer) para el envío de notificaciones de pedidos.
+
+| Variable | Ejemplo | Descripción |
+|---|---|---|
+| `MAIL_ENABLED` | `true` | Si es `true`, se envía el correo al registrar un pedido. Si es `false`, el CSV se genera y se elimina sin enviar ningún email. |
+| `MAIL_HOST` | `chimborazo.ecuahosting.net` | Hostname del servidor SMTP. |
+| `MAIL_PORT` | `465` | Puerto SMTP. |
+| `MAIL_SECURE` | `true` | Si es `true`, usa TLS desde el inicio de la conexión (puerto 465). Si es `false`, puede usar STARTTLS (puerto 587). |
+| `MAIL_USER` | `reqsuministros@farmcorp.com.ec` | Usuario de autenticación SMTP. |
+| `MAIL_PASS` | *(contraseña)* | Contraseña de la cuenta SMTP. |
+| `MAIL_FROM_NAME` | `Sistema de Suministros` | Nombre visible del remitente en el campo "De:" del correo. |
+| `MAIL_REPLY_TO` | `reqsuministros@farmcorp.com.ec` | Dirección de respuesta para el correo enviado. |
+| `MAIL_TO` | `logistica@farmcorp.com.ec` | Dirección (o lista separada por comas) que recibirá los pedidos. |
+
+## Archivos temporales
+
+| Variable | Ejemplo | Descripción |
+|---|---|---|
+| `FILES_PATH` | `./temp_files` | Ruta del directorio donde se escriben los archivos CSV antes de adjuntarlos al correo. El directorio se crea automáticamente si no existe. El archivo se elimina una vez enviado el correo (o inmediatamente si `MAIL_ENABLED=false`). |

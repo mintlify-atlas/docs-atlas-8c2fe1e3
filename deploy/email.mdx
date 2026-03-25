@@ -1,0 +1,108 @@
+---
+title: "Configuración de email"
+description: "Configuración del envío de notificaciones por correo electrónico al registrar pedidos de suministros."
+---
+
+Al registrar un pedido exitoso, el backend genera un archivo CSV con el detalle del pedido y lo envía como adjunto al destinatario configurado. Esta funcionalidad usa **Nodemailer** con un servidor SMTP externo.
+
+## Cuándo se envía el correo
+
+El correo se envía **después** de que el pedido es registrado correctamente en la base de datos y el presupuesto o cupo es descontado. El proceso es:
+
+1. El pedido se valida y se guarda en la BD (dentro de una transacción).
+2. Se genera el archivo CSV en el directorio `FILES_PATH`.
+3. Si `MAIL_ENABLED=true`, se intenta enviar el correo con el CSV adjunto.
+4. El archivo CSV se elimina del disco, independientemente de si el correo fue enviado o no.
+5. Se devuelve la respuesta al frontend indicando si el email fue enviado (`emailEnviado: true/false`).
+
+<Note>
+  Si `MAIL_ENABLED=false`, el CSV se genera en disco y se elimina inmediatamente sin enviar ningún correo. El pedido queda registrado correctamente en la base de datos en ambos casos.
+</Note>
+
+## Variables de configuración
+
+### Transporte SMTP
+
+| Variable | Ejemplo | Descripción |
+|---|---|---|
+| `MAIL_ENABLED` | `true` | Activa (`true`) o desactiva (`false`) el envío de emails. |
+| `MAIL_HOST` | `chimborazo.ecuahosting.net` | Hostname del servidor SMTP. |
+| `MAIL_PORT` | `465` | Puerto SMTP. Usa `465` para TLS implícito o `587` para STARTTLS. |
+| `MAIL_SECURE` | `true` | `true` para TLS implícito (puerto 465). `false` para STARTTLS (puerto 587). |
+| `MAIL_USER` | `reqsuministros@farmcorp.com.ec` | Usuario de autenticación SMTP. |
+| `MAIL_PASS` | *(contraseña)* | Contraseña de la cuenta SMTP. |
+
+### Contenido del correo
+
+| Variable | Ejemplo | Descripción |
+|---|---|---|
+| `MAIL_FROM_NAME` | `Sistema de Suministros` | Nombre del remitente que aparece en el campo "De:" del correo. |
+| `MAIL_REPLY_TO` | `reqsuministros@farmcorp.com.ec` | Dirección a la que el destinatario puede responder. |
+| `MAIL_TO` | `logistica@farmcorp.com.ec` | Dirección o lista de direcciones (separadas por coma) que recibirán el pedido. |
+
+## Formato del CSV adjunto
+
+El archivo adjunto se llama `pedidoSuministro_{login}_{fecha}.csv`, por ejemplo `pedidoSuministro_jperez_2026-03-25.csv`.
+
+El CSV tiene el siguiente formato:
+
+```
+Solicitado por:,Juan Perez
+Origen:,PDV-001 / Departamento LOGÍSTICA
+Ciudad:,Quito
+Dirección:,Av. Amazonas 123
+Cupo PDV:,$500.00
+
+Descripcion,Tipo de Suministro,Cantidad,Precio Unitario,Total
+Resma de papel A4,Suministro de Oficina,2,4.50,9.00
+Detergente industrial,Suministro de Limpieza,1,12.00,12.00
+
+,,, Total S. Oficina:,9.00
+,,, Total S. Limpieza:,12.00
+
+,,, Total:,21.00
+```
+
+**Bloque de cabecera:**
+
+| Campo | Descripción |
+|---|---|
+| `Solicitado por` | Nombre completo del usuario que realizó el pedido. |
+| `Origen` | Para pedidos Comercial: código del PDV. Para departamentos: nombre del departamento en mayúsculas. |
+| `Ciudad` | Ciudad del PDV (solo para pedidos Comercial; `N/A` para departamentos). |
+| `Dirección` | Dirección del PDV (solo para pedidos Comercial; `N/A` para departamentos). |
+| `Cupo PDV` / `Presupuesto Departamento` | Monto disponible al momento del pedido. |
+
+**Filas de detalle:**
+
+| Columna | Descripción |
+|---|---|
+| `Descripcion` | Nombre del suministro. |
+| `Tipo de Suministro` | Categoría del suministro (ej. "Suministro de Oficina", "Suministro de Limpieza"). |
+| `Cantidad` | Unidades solicitadas (entre 1 y 10 por ítem). |
+| `Precio Unitario` | Precio de compra del proveedor asignado. |
+| `Total` | `Cantidad × Precio Unitario`. |
+
+**Subtotales:**
+
+- `Total S. Oficina`: suma de ítems con `id_tipo_suministro = 1`.
+- `Total S. Limpieza`: suma del resto de ítems.
+- `Total`: suma general del pedido.
+
+## Ejemplo de configuración
+
+```env
+MAIL_ENABLED=true
+MAIL_HOST=chimborazo.ecuahosting.net
+MAIL_PORT=465
+MAIL_SECURE=true
+MAIL_USER=reqsuministros@farmcorp.com.ec
+MAIL_PASS=TU_CONTRASEÑA_SMTP
+MAIL_FROM_NAME=Sistema de Suministros Farmcorp
+MAIL_REPLY_TO=reqsuministros@farmcorp.com.ec
+MAIL_TO=logistica@farmcorp.com.ec
+```
+
+<Tip>
+  Para probar la configuración de email sin afectar el correo real, usa un servidor SMTP de pruebas como [Mailtrap](https://mailtrap.io). Crea una bandeja de entrada en Mailtrap, copia las credenciales SMTP que proporciona y configúralas en las variables `MAIL_HOST`, `MAIL_PORT`, `MAIL_USER` y `MAIL_PASS`. Con `MAIL_ENABLED=true` y las credenciales de Mailtrap, cada pedido enviará el correo a la bandeja virtual donde podrás inspeccionarlo sin que llegue a destinatarios reales.
+</Tip>

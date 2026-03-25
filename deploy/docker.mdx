@@ -1,0 +1,172 @@
+---
+title: "Despliegue con Docker"
+description: "Guía paso a paso para desplegar el sistema usando las imágenes de producción publicadas en el GitHub Container Registry con Docker Compose."
+---
+
+Esta es la forma recomendada de desplegar el sistema. Las imágenes de producción ya están compiladas y publicadas; solo necesitas configurar las variables de entorno y ejecutar `docker compose up`.
+
+**Imágenes de producción:**
+
+- Backend: `ghcr.io/devgrantfc/farmcorp-supply-backend-api:1.0.0-prod`
+- Frontend: `ghcr.io/devgrantfc/farmcorp-supply-frontend:1.0.0-prod`
+
+<Steps>
+  <Step title="Descargar el repositorio">
+    Clona el repositorio o descarga únicamente el archivo `docker-compose.yml` en el servidor de destino.
+
+    ```bash
+    git clone <url-del-repositorio>
+    cd <directorio-del-proyecto>
+    ```
+
+    Si solo quieres el archivo de composición sin clonar todo el repositorio, puedes descargarlo directamente y colocarlo en una carpeta vacía.
+  </Step>
+
+  <Step title="Configurar docker-compose.yml">
+    Abre `docker-compose.yml` y ajusta las variables de entorno del servicio `backend` según tu entorno. A continuación, el bloque completo de servicios para referencia:
+
+    ```yaml
+    services:
+      backend:
+        image: ghcr.io/devgrantfc/farmcorp-supply-backend-api:1.0.0-prod
+        container_name: supply-backend
+        ports:
+          - "3001:3001"
+        environment:
+          # Base de datos
+          - DB_HOST=10.101.183.40        # Cambia a la IP/hostname de tu MySQL
+          - DB_PORT=3306
+          - DB_NAME=DB_SupplyChain
+          - DB_USER=dbSystemSC
+          - DB_PASS=TU_CONTRASEÑA_SEGURA  # No usar la contraseña del ejemplo
+
+          # Autenticación
+          - AUTH_MODE=ldap               # 'local' para pruebas sin AD
+
+          # LDAP
+          - LDAP_URL=ldap://SRVDCR000.farmcorp.com.ec
+          - LDAP_HOST=LDAP://SRVDCR000.farmcorp.com.ec
+          - LDAP_SERVICE_DN=src_TI_ldap@farmcorp.com.ec
+          - LDAP_SERVICE_PASS=TU_CONTRASEÑA_LDAP
+          - LDAP_BASE_OU=ou=usuarios,ou=farmcorp,dc=farmcorp,dc=com,dc=ec
+
+          # Servidor
+          - PORT=3001
+          - NODE_ENV=production
+
+          # Sesiones
+          - SESSION_SECRET=CAMBIA_ESTO_EN_PRODUCCION
+          - SESSION_MAX_AGE=28800000     # 8 horas en milisegundos
+
+          # CORS — URL exacta del frontend accesible por los usuarios
+          - CORS_ORIGIN=http://localhost:5173
+
+          # Email
+          - MAIL_ENABLED=true
+          - MAIL_HOST=chimborazo.ecuahosting.net
+          - MAIL_PORT=465
+          - MAIL_SECURE=true
+          - MAIL_USER=reqsuministros@farmcorp.com.ec
+          - MAIL_PASS=TU_CONTRASEÑA_SMTP
+          - MAIL_FROM_NAME=Sistema de Suministros
+          - MAIL_REPLY_TO=reqsuministros@farmcorp.com.ec
+          - MAIL_TO=destinatario@farmcorp.com.ec
+
+        restart: unless-stopped
+        networks:
+          - supply-chain
+
+      frontend:
+        image: ghcr.io/devgrantfc/farmcorp-supply-frontend:1.0.0-prod
+        container_name: supply-frontend
+        ports:
+          - "5173:5173"
+        restart: unless-stopped
+        networks:
+          - supply-chain
+        depends_on:
+          - backend
+
+    networks:
+      supply-chain:
+        driver: bridge
+    ```
+
+    Variables que **debes** ajustar antes de iniciar:
+
+    | Variable | Qué configurar |
+    |---|---|
+    | `DB_HOST` | IP o hostname del servidor MySQL/MariaDB |
+    | `DB_PASS` | Contraseña del usuario de base de datos |
+    | `AUTH_MODE` | `ldap` para producción, `local` para pruebas |
+    | `LDAP_SERVICE_PASS` | Contraseña de la cuenta de servicio LDAP |
+    | `CORS_ORIGIN` | URL exacta del frontend que verán los usuarios |
+    | `SESSION_SECRET` | Cadena aleatoria larga y secreta |
+    | `MAIL_PASS` | Contraseña de la cuenta de correo saliente |
+    | `MAIL_TO` | Dirección que recibirá los pedidos por email |
+
+    <Warning>
+      `CORS_ORIGIN` debe coincidir exactamente con la URL que los usuarios escriben en el navegador para acceder al frontend, incluyendo protocolo y puerto. Si el frontend está en `http://10.101.13.149:5173`, ese es el valor que debe configurarse. Un valor incorrecto provocará errores de red en el navegador al intentar comunicarse con la API.
+    </Warning>
+  </Step>
+
+  <Step title="Iniciar los servicios">
+    Desde el directorio donde está el `docker-compose.yml`, ejecuta:
+
+    ```bash
+    docker compose up -d
+    ```
+
+    Docker descargará las imágenes desde el GitHub Container Registry (si no están en caché) y levantará los contenedores en segundo plano.
+  </Step>
+
+  <Step title="Verificar que los servicios están corriendo">
+    ```bash
+    docker compose ps
+    ```
+
+    Debes ver los dos servicios con estado `running` (o `healthy` si el health check ya pasó):
+
+    ```
+    NAME               IMAGE                                                          STATUS
+    supply-backend     ghcr.io/devgrantfc/farmcorp-supply-backend-api:1.0.0-prod     Up (healthy)
+    supply-frontend    ghcr.io/devgrantfc/farmcorp-supply-frontend:1.0.0-prod        Up (healthy)
+    ```
+
+    Para revisar los logs en tiempo real:
+
+    ```bash
+    docker compose logs -f
+    docker compose logs -f backend   # solo backend
+    docker compose logs -f frontend  # solo frontend
+    ```
+  </Step>
+
+  <Step title="Acceder a la aplicación">
+    Una vez que ambos contenedores están saludables:
+
+    - **Frontend:** [http://localhost:5173](http://localhost:5173)
+    - **API (health check):** [http://localhost:3001/api/health](http://localhost:3001/api/health)
+
+    El health check del backend responde `200 OK` cuando el proceso Node.js está listo para recibir solicitudes. El frontend no requiere conexión a la base de datos para servirse.
+  </Step>
+</Steps>
+
+## Detener y actualizar los servicios
+
+```bash
+# Detener sin eliminar los contenedores
+docker compose stop
+
+# Detener y eliminar contenedores (conserva imágenes y redes)
+docker compose down
+
+# Reiniciar un servicio específico
+docker compose restart backend
+```
+
+## Notas de configuración de base de datos
+
+<Note>
+  El servicio de base de datos (`database:`) está comentado por defecto en `docker-compose.yml`. El sistema está configurado para conectarse a una instancia de MySQL/MariaDB externa (en el ejemplo, `10.101.183.40`). Si deseas ejecutar MySQL en Docker, descomenta el bloque del servicio `database` y el bloque de volúmenes, y actualiza `DB_HOST` a `database` (el nombre del servicio en la red interna).
+</Note>

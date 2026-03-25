@@ -1,0 +1,65 @@
+---
+title: "Mis pedidos"
+description: "Consulta y filtra el historial de pedidos que has enviado, revisa su estado actual y accede al detalle completo de cada solicitud."
+---
+
+La sección **Mis Pedidos** te permite hacer seguimiento de todas las solicitudes de suministros que hayas enviado, con filtros avanzados para encontrar pedidos específicos y acceso al detalle completo de cada uno.
+
+## Acceder a Mis Pedidos
+
+En el menú lateral, haz clic en **Inicio** y luego selecciona la pestaña **Mis Pedidos**.
+
+## Tabla de pedidos
+
+Cada fila de la tabla representa un pedido enviado. Las columnas disponibles son:
+
+| Columna | Descripción |
+|---------|-------------|
+| **ID Pedido** | Identificador único del pedido en el sistema |
+| **Fecha** | Fecha y hora en que se registró la solicitud |
+| **Artículos** | Número total de ítems incluidos en el pedido |
+| **Total** | Monto total del pedido calculado desde la base de datos |
+| **Estado** | Estado actual: Pendiente, Aprobado, Rechazado, En espera o Entregado |
+
+## Filtros disponibles
+
+Puedes combinar uno o varios filtros para acotar los resultados:
+
+| Filtro | Descripción |
+|--------|-------------|
+| **Buscar** | Escribe un ID de pedido o el nombre de un suministro para buscar coincidencias |
+| **Desde / Hasta** | Rango de fechas para limitar los resultados a un período específico |
+| **Mínimo / Máximo** | Rango de monto total para filtrar por valor del pedido |
+| **Estado** | Selecciona entre Todos, Pendientes, Aprobados o Rechazados |
+
+## Cómo encontrar un pedido específico
+
+<Steps>
+  <Step title="Abre la sección Mis Pedidos">
+    En el menú lateral, haz clic en **Inicio** y selecciona la pestaña **Mis Pedidos**. La tabla carga automáticamente con todos tus pedidos ordenados del más reciente al más antiguo.
+  </Step>
+  <Step title="Aplica los filtros necesarios">
+    Usa el campo de búsqueda para escribir el ID del pedido o el nombre de un suministro incluido. Si conoces el período aproximado, define un rango de fechas en los campos **Desde** y **Hasta**. Para limitar por monto, ingresa un valor en **Mínimo** y/o **Máximo**.
+  </Step>
+  <Step title="Filtra por estado si es necesario">
+    Selecciona el estado en el desplegable para ver únicamente pedidos **Pendientes**, **Aprobados** o **Rechazados**. Por defecto se muestran todos.
+  </Step>
+  <Step title="Abre el detalle del pedido">
+    Haz clic en el ícono de ojo (👁️) en la columna de acciones del pedido que quieres revisar. Se abrirá el panel de detalle completo.
+  </Step>
+</Steps>
+
+## Detalle de un pedido
+
+Al hacer clic en el ícono de ojo de cualquier pedido, accedes a su vista de detalle. Esta pantalla muestra:
+
+- **Fecha** de registro del pedido
+- **Estado** actual con su indicador de color
+- **Total** calculado
+- **Lista de suministros** solicitados, con nombre, tipo, cantidad, precio unitario y subtotal por ítem
+- **Observaciones de aprobación** — nota opcional que el aprobador puede incluir al aprobar el pedido
+- **Motivo de rechazo** — razón registrada por el aprobador en caso de que el pedido haya sido rechazado
+
+<Info>
+  El precio mostrado en el detalle es el precio recalculado por el servidor al momento de enviar el pedido, no el valor ingresado manualmente.
+</Info>

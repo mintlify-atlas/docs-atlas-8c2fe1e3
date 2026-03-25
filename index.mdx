@@ -1,97 +1,82 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "Sistema de Distribución de Suministros"
+description: "Plataforma interna de Farmcorp para gestionar solicitudes de suministros de oficina y limpieza desde Puntos de Venta (PDV) y departamentos internos."
 ---
 
-## Setting up
+## Bienvenido al sistema
 
-Get your documentation site up and running in minutes.
+El **Sistema de Distribución de Suministros** de Farmcorp permite a los Puntos de Venta (PDV) y departamentos internos solicitar suministros de forma digital, con validación de cupos, ventanas de tiempo configurables por zona y un flujo de aprobación centralizado.
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
+```
+PDV realiza pedido → Sistema valida cupo y ventana → Notificación email → Aprobador revisa → Aprobado / Rechazado
+```
 
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+<CardGroup cols={2}>
+  <Card title="Guía de inicio rápido" icon="rocket" href="/introduction">
+    Aprende el flujo completo: desde el inicio de sesión hasta confirmar tu primer pedido.
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="Roles y permisos" icon="users" href="/roles-y-permisos">
+    Conoce los cuatro roles del sistema y qué puede hacer cada uno.
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="Despliegue con Docker" icon="docker" href="/deploy/docker">
+    Levanta el sistema completo con un solo comando usando Docker Compose.
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="API Reference" icon="code" href="/api/auth">
+    Documentación completa de todos los endpoints REST del backend.
   </Card>
-</Columns>
+</CardGroup>
 
-## Create beautiful pages
+## Flujo del sistema
 
-Everything you need to create world-class documentation.
+<Steps>
+  <Step title="Inicio de sesión">
+    El usuario se autentica con credenciales corporativas. El sistema detecta automáticamente su rol, departamento y PDV asignado.
+  </Step>
+  <Step title="Selección de suministros">
+    El usuario selecciona el tipo de suministro, busca artículos y los agrega al carrito. El sistema valida cupos en tiempo real.
+  </Step>
+  <Step title="Envío del pedido">
+    Al confirmar, el servidor recalcula todos los precios desde la base de datos y valida la ventana de pedidos para la zona.
+  </Step>
+  <Step title="Notificación automática">
+    Se genera un CSV con el detalle del pedido y se envía por email al equipo responsable.
+  </Step>
+  <Step title="Aprobación">
+    El aprobador revisa el pedido, puede editar cantidades y finalmente aprueba o rechaza con un motivo obligatorio.
+  </Step>
+</Steps>
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+## Características principales
 
-## Need inspiration?
+<CardGroup cols={2}>
+  <Card title="Control de cupos" icon="shield-check">
+    Cada PDV tiene un cupo asignado por grupo. El sistema bloquea pedidos que excedan el límite disponible.
+  </Card>
+  <Card title="Ventanas de pedido" icon="calendar">
+    Los pedidos solo pueden realizarse en los días configurados por zona comercial o departamento.
+  </Card>
+  <Card title="Autenticación LDAP" icon="key">
+    Integración con Active Directory de Farmcorp para autenticación corporativa en producción.
+  </Card>
+  <Card title="Reportes Excel" icon="table">
+    Exportación de reportes detallados con filtros por período, PDV, estado y tipo de suministro.
+  </Card>
+  <Card title="Precios desde BD" icon="lock">
+    Los precios siempre se recalculan en el servidor. Los valores del frontend nunca se aceptan.
+  </Card>
+  <Card title="Panel administrativo" icon="settings">
+    Gestión completa de usuarios, suministros, PDVs, proveedores y configuración del sistema.
+  </Card>
+</CardGroup>
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+## Arquitectura
+
+```
+supply-frontend/     → Interfaz React + Vite + Tailwind CSS
+supply-backend/      → API REST Node.js + Express
+BASEDEDATOS/         → Scripts SQL para MariaDB/MySQL
+```
+
+<Info>
+  Esta documentación cubre el uso del sistema, la administración, el despliegue y la referencia completa de la API REST.
+</Info>

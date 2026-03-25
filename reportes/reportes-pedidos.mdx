@@ -1,0 +1,198 @@
+---
+title: 'Reportes de pedidos'
+description: 'Consulta y filtra el detalle de pedidos de suministros por ítem, con paginación y múltiples criterios de búsqueda.'
+---
+
+El módulo de reportes de pedidos expone el endpoint `GET /api/reportes/pedidos` y devuelve una fila por cada ítem dentro de los pedidos que coincidan con los filtros aplicados. Esto significa que un pedido con tres suministros distintos producirá tres filas en el resultado.
+
+<Info>
+  El acceso a este módulo requiere el permiso **REPORTES**. Los usuarios sin este permiso recibirán un error `403 Forbidden` al intentar consultar cualquier endpoint bajo `/api/reportes`.
+</Info>
+
+## Filtros disponibles
+
+Todos los filtros se envían como query parameters en la URL. Son opcionales y se combinan entre sí con `AND`.
+
+<AccordionGroup>
+  <Accordion title="mes + anio — Filtro por mes y año">
+    Filtra pedidos cuya fecha de registro corresponda exactamente al mes y año indicados.
+
+    | Parámetro | Tipo    | Descripción                          |
+    | --------- | ------- | ------------------------------------ |
+    | `mes`     | integer | Número de mes (1–12)                 |
+    | `anio`    | integer | Año de cuatro dígitos (ej. `2025`)   |
+
+    Ambos parámetros deben enviarse juntos para activar este filtro. Si solo se envía `anio`, el sistema filtra por año completo (ver siguiente filtro).
+
+    ```http
+    GET /api/reportes/pedidos?mes=3&anio=2025
+    ```
+  </Accordion>
+
+  <Accordion title="anio — Filtro por año">
+    Filtra todos los pedidos registrados durante el año indicado, sin importar el mes.
+
+    | Parámetro | Tipo    | Descripción                        |
+    | --------- | ------- | ---------------------------------- |
+    | `anio`    | integer | Año de cuatro dígitos (ej. `2025`) |
+
+    ```http
+    GET /api/reportes/pedidos?anio=2025
+    ```
+  </Accordion>
+
+  <Accordion title="fechaDesde / fechaHasta — Rango de fechas">
+    Filtra pedidos dentro de un rango de fechas arbitrario. Pueden usarse de forma independiente o combinados.
+
+    | Parámetro    | Tipo   | Descripción                              |
+    | ------------ | ------ | ---------------------------------------- |
+    | `fechaDesde` | string | Fecha de inicio en formato `YYYY-MM-DD`  |
+    | `fechaHasta` | string | Fecha de fin en formato `YYYY-MM-DD`     |
+
+    ```http
+    GET /api/reportes/pedidos?fechaDesde=2025-01-01&fechaHasta=2025-03-31
+    ```
+  </Accordion>
+
+  <Accordion title="pdv — Filtro por punto de venta">
+    Filtra pedidos asociados a un PDV específico mediante su ID numérico.
+
+    | Parámetro | Tipo    | Descripción      |
+    | --------- | ------- | ---------------- |
+    | `pdv`     | integer | ID del PDV       |
+
+    ```http
+    GET /api/reportes/pedidos?pdv=42
+    ```
+  </Accordion>
+
+  <Accordion title="estado — Filtro por estado del pedido">
+    Filtra pedidos según su estado actual (por ejemplo, aprobado, pendiente, rechazado) usando el ID numérico del estado.
+
+    | Parámetro | Tipo    | Descripción              |
+    | --------- | ------- | ------------------------ |
+    | `estado`  | integer | ID del estado del pedido |
+
+    ```http
+    GET /api/reportes/pedidos?estado=2
+    ```
+  </Accordion>
+
+  <Accordion title="tipoSuministro — Filtro por tipo de suministro">
+    Incluye solo los pedidos que contengan al menos un ítem del tipo de suministro indicado. Una vez que un pedido califica, el resultado muestra únicamente sus ítems que pertenecen a ese tipo.
+
+    | Parámetro        | Tipo    | Descripción                   |
+    | ---------------- | ------- | ----------------------------- |
+    | `tipoSuministro` | integer | ID del tipo de suministro     |
+
+    ```http
+    GET /api/reportes/pedidos?tipoSuministro=3
+    ```
+  </Accordion>
+
+  <Accordion title="usuario — Filtro por login de usuario">
+    Filtra pedidos realizados por usuarios cuyo login contenga el texto indicado. La búsqueda es parcial (contiene), no exacta.
+
+    | Parámetro | Tipo   | Descripción                            |
+    | --------- | ------ | -------------------------------------- |
+    | `usuario` | string | Texto parcial del login del usuario    |
+
+    ```http
+    GET /api/reportes/pedidos?usuario=mgarcia
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Paginación
+
+El endpoint pagina los resultados **por pedidos distintos**, no por filas. La respuesta incluye todos los ítems de los pedidos que entran en la página seleccionada.
+
+| Parámetro | Tipo    | Valor por defecto | Límite máximo | Descripción                         |
+| --------- | ------- | ----------------- | ------------- | ----------------------------------- |
+| `page`    | integer | `1`               | —             | Número de página (comienza en 1)    |
+| `limit`   | integer | `30`              | `100`         | Cantidad de pedidos distintos por página |
+
+La respuesta siempre incluye los metadatos de paginación:
+
+```json
+{
+  "data": [...],
+  "total": 248,
+  "page": 1,
+  "limit": 30,
+  "totalPages": 9
+}
+```
+
+<Note>
+  El campo `total` refleja el conteo de **pedidos distintos** que coinciden con los filtros, no el número de filas devueltas. Una página puede contener más filas que el valor de `limit` si los pedidos tienen múltiples ítems.
+</Note>
+
+## Datos devueltos por fila
+
+Cada elemento del array `data` representa un ítem dentro de un pedido. Los campos repetidos (como el nombre del usuario o el PDV) se incluyen en cada fila para facilitar el procesamiento.
+
+<CardGroup cols={2}>
+  <Card title="Identificación del pedido" icon="file-text">
+    - **`pedidoId`** — ID numérico del pedido
+    - **`fecha`** — Fecha de registro en formato `YYYY-MM-DD`
+    - **`estado`** — Descripción del estado del pedido
+    - **`observacionesAprobacion`** — Notas del aprobador
+    - **`motivoRechazo`** — Motivo en caso de rechazo
+  </Card>
+
+  <Card title="Datos del usuario" icon="user">
+    - **`usuarioLogin`** — Login del usuario solicitante
+    - **`usuarioNombre`** — Nombres completos del usuario
+    - **`departamento`** — Departamento del usuario (`'Sin departamento'` si no aplica)
+  </Card>
+
+  <Card title="Datos del PDV" icon="map-pin">
+    - **`pdvNombre`** — Código de centro de costo del PDV
+    - **`ciudad`** — Ciudad del PDV
+    - **`region`** — Región del PDV
+    - **`supervisor`** — Nombre del supervisor asignado
+    - **`codigoZona`** — Código de la zona comercial
+  </Card>
+
+  <Card title="Datos del ítem" icon="package">
+    - **`tipoSuministro`** — Categoría del suministro
+    - **`suministro`** — Nombre del suministro
+    - **`proveedor`** — Proveedor del ítem (`'Sin proveedor'` si no aplica)
+    - **`cantidad`** — Unidades solicitadas
+    - **`precioUnitario`** — Precio por unidad
+    - **`subtotal`** — `cantidad × precioUnitario`
+  </Card>
+</CardGroup>
+
+## Ejemplos de uso
+
+<Steps>
+  <Step title="Consultar pedidos de un mes específico">
+    Obtiene todos los ítems de los pedidos registrados en marzo de 2025, primera página:
+
+    ```http
+    GET /api/reportes/pedidos?mes=3&anio=2025&page=1&limit=30
+    ```
+  </Step>
+
+  <Step title="Filtrar por PDV y rango de fechas">
+    Pedidos del PDV 42 entre el 1 y el 15 de febrero de 2025:
+
+    ```http
+    GET /api/reportes/pedidos?pdv=42&fechaDesde=2025-02-01&fechaHasta=2025-02-15
+    ```
+  </Step>
+
+  <Step title="Buscar pedidos de un usuario">
+    Pedidos realizados por cualquier usuario cuyo login contenga `garcia`, en el año 2025:
+
+    ```http
+    GET /api/reportes/pedidos?usuario=garcia&anio=2025
+    ```
+  </Step>
+</Steps>
+
+<Warning>
+  No combinar `mes`/`anio` con `fechaDesde`/`fechaHasta` en la misma consulta. Ambos grupos de filtros se aplican simultáneamente con `AND`, lo que puede producir resultados vacíos si los rangos no se solapan.
+</Warning>

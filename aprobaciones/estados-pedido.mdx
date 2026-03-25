@@ -1,0 +1,40 @@
+---
+title: "Estados del pedido"
+description: "Referencia de todos los estados posibles de un pedido, sus colores indicadores y las transiciones permitidas entre ellos."
+---
+
+Cada pedido en el sistema tiene un estado que refleja en qué etapa del flujo de aprobación se encuentra. Los estados se muestran con un color indicador tanto en **Mis Pedidos** como en el módulo de **Aprobaciones**.
+
+## Estados disponibles
+
+| Estado | Color | Descripción |
+|--------|-------|-------------|
+| **Pendiente** | Amarillo | El pedido fue enviado y está esperando revisión por parte del aprobador |
+| **Aprobado** | Verde | El pedido fue aprobado por el área responsable (Financiero / Tecnología) |
+| **Rechazado** | Rojo | El pedido fue rechazado; el motivo de rechazo está disponible en el detalle |
+| **En espera** | Azul | El pedido se encuentra en un estado intermedio de revisión |
+| **Entregado** | Verde oscuro | Los suministros han sido despachados y entregados al PDV o departamento solicitante |
+
+## Diagrama de transiciones
+
+Las transiciones de estado permitidas en el flujo principal son:
+
+```
+Pendiente → Aprobado
+Pendiente → Rechazado
+```
+
+Un pedido en estado **Pendiente** (o **En espera**) puede ser aprobado o rechazado por el aprobador. Una vez que el pedido ha sido aprobado y los suministros son despachados, el estado pasa a **Entregado**.
+
+## Restauración de cupo y presupuesto al rechazar
+
+Cuando un pedido en estado **Pendiente** es rechazado, el sistema restaura automáticamente el monto que había sido descontado:
+
+- Para pedidos de un **PDV**: se restaura el cupo disponible del punto de venta, sin superar el cupo máximo autorizado del grupo.
+- Para pedidos de un **departamento interno**: se restaura el monto ejecutado del presupuesto del período actual.
+
+Esto permite que el solicitante pueda realizar un nuevo pedido ajustado sin esperar al siguiente ciclo de cupos.
+
+<Tip>
+  Si tu pedido aparece como **Rechazado**, abre el detalle desde **Mis Pedidos** haciendo clic en el ícono de ojo. Encontrarás el motivo de rechazo registrado por el aprobador, lo que te ayudará a corregir y reenviar la solicitud.
+</Tip>

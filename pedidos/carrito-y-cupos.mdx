@@ -1,0 +1,49 @@
+---
+title: "Carrito y control de cupos"
+description: "Cómo funciona el carrito de compras y el sistema de control de cupos antes de enviar un pedido."
+---
+
+Antes de enviar el pedido, el carrito te permite revisar todos los ítems seleccionados y verificar que el total se encuentra dentro del cupo disponible.
+
+## Contenido del carrito
+
+Cada ítem en el carrito muestra las siguientes columnas:
+
+| Columna | Descripción |
+|---------|-------------|
+| **Descripción** | Nombre del suministro |
+| **Tipo** | Categoría: Oficina o Limpieza |
+| **Cantidad** | Unidades solicitadas |
+| **P. Unitario** | Precio por unidad, tomado desde la base de datos |
+| **Total** | Subtotal del ítem (cantidad × precio unitario) |
+
+Para eliminar un ítem, haz clic en el botón **×** junto al artículo correspondiente.
+
+## Subtotales
+
+Al pie del carrito se muestran tres resúmenes:
+
+- **Total Oficina** — suma de todos los suministros de tipo Oficina
+- **Total Limpieza** — suma de todos los suministros de tipo Limpieza
+- **Total General** — monto total del pedido
+
+## Indicador de cupo excedido
+
+Si el Total General supera el cupo disponible asignado al PDV, el sistema muestra una alerta en rojo con la etiqueta **EXCEDIDO** y deshabilita el botón **Realizar Pedido** hasta que elimines o reduzcas ítems para que el total quede dentro del cupo.
+
+<Warning>
+  Los precios mostrados en pantalla son referenciales. El servidor recalcula todos los precios al momento del envío usando los valores vigentes en la base de datos. El total definitivo puede diferir si los precios fueron actualizados entre el momento de la búsqueda y el envío.
+</Warning>
+
+## Validaciones del servidor
+
+Al hacer clic en **Realizar Pedido**, el servidor ejecuta las siguientes validaciones de forma independiente al frontend. Si alguna falla, el pedido es rechazado y se muestra el error correspondiente:
+
+| Validación | Detalle |
+|------------|---------|
+| **PDV activo** | El punto de venta debe estar activo en el sistema (`id_estado_pdv = 1`). |
+| **Ventana de pedidos** | La fecha actual debe estar dentro del rango de días habilitados para la zona comercial del PDV. Para departamentos, dentro del rango configurado en el registro del departamento. |
+| **Suministro habilitado** | Cada suministro debe estar asociado al PDV (vía `v_suministros_efectivos_pdv`) o al departamento (vía `departamento_suministros`). |
+| **Cantidad válida** | La cantidad de cada ítem debe estar entre 1 y 10 unidades. |
+| **Cupo no excedido** | El total recalculado no puede superar el cupo disponible del PDV (`cupo_disponible`) ni el presupuesto restante del departamento. |
+| **Precios desde la base de datos** | El servidor ignora los precios enviados por el frontend y recalcula cada precio desde `suministros_precios` usando el proveedor preferido y el precio de compra vigente. |

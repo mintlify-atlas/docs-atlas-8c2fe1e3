@@ -1,0 +1,109 @@
+---
+title: "Introducción al sistema"
+description: "Plataforma digital de Farmcorp para que Puntos de Venta y departamentos internos soliciten suministros de manera controlada y trazable."
+---
+
+El **Sistema de Distribución de Suministros** permite a los Puntos de Venta (PDV) y departamentos internos de Farmcorp solicitar suministros de oficina y limpieza de forma digital, respetando cupos asignados, ventanas de tiempo habilitadas y un flujo de aprobación centralizado.
+
+El proceso completo sigue esta ruta:
+
+```
+PDV realiza pedido → Sistema valida cupo y ventana → Email automático → Aprobador revisa → Pedido aprobado / rechazado
+```
+
+## Flujo de un pedido
+
+<Steps>
+  <Step title="Inicio de sesión">
+    Ingresa con tus credenciales corporativas (usuario y contraseña). El sistema detecta automáticamente tu **rol** y el **punto de venta** o departamento asociado a tu cuenta.
+
+    Si perteneces al departamento **Comercial**, tu PDV se asigna automáticamente con base en tu nombre de usuario y la unidad organizativa (`ou=pdv`) registrada en el directorio corporativo.
+  </Step>
+
+  <Step title="Identificación del punto de venta">
+    Al ingresar al módulo **Inicio / Nuevo Pedido**, el sistema muestra tu PDV, ciudad y cupo disponible de forma automática.
+
+    | Campo | Descripción |
+    |---|---|
+    | **PDV** | Código del punto de venta asignado |
+    | **Ciudad** | Ciudad donde se ubica el PDV |
+    | **Cupo disponible** | Monto máximo autorizado para el pedido actual |
+
+    El cupo se muestra como referencia. Si el total del carrito lo supera, el sistema bloquea el envío.
+  </Step>
+
+  <Step title="Selección de suministros">
+    1. Selecciona el **tipo de suministro** en el desplegable: Suministros de Oficina o Suministros de Limpieza.
+    2. Busca el suministro por nombre o proveedor. El sistema muestra hasta 12 coincidencias con nombre y precio unitario.
+    3. Indica la cantidad deseada (mínimo: 1, máximo: 10 unidades por ítem).
+    4. Haz clic en **+ Agregar** para añadir el ítem al carrito.
+
+    Puedes agregar múltiples suministros de distintos tipos antes de enviar.
+  </Step>
+
+  <Step title="Revisión del carrito">
+    El carrito muestra un resumen con descripción, tipo, cantidad, precio unitario y subtotal por ítem. Al pie aparecen los totales por categoría (Oficina y Limpieza) y el **Total General**.
+
+    Si el total supera el cupo asignado, el sistema muestra una alerta `EXCEDIDO` y deshabilita el botón de envío hasta que elimines o reduzcas ítems.
+  </Step>
+
+  <Step title="Envío del pedido">
+    Haz clic en **Realizar Pedido**. El servidor ejecuta las siguientes validaciones antes de registrar el pedido:
+
+    - El PDV está activo en el sistema.
+    - La fecha actual está dentro de la ventana de pedidos de la zona.
+    - Cada suministro está habilitado para este PDV.
+    - Los precios se recalculan desde la base de datos.
+    - El total no supera el cupo del PDV.
+
+    <Warning>
+      Los precios y totales son siempre recalculados en el servidor al momento de enviar. Los valores mostrados en el frontend son referenciales; el sistema no acepta montos provenientes del navegador. Esto previene manipulaciones en los valores del pedido.
+    </Warning>
+  </Step>
+
+  <Step title="Confirmación y notificación">
+    Tras un pedido exitoso:
+
+    - El pedido se registra con estado **Pendiente**.
+    - Se genera un archivo CSV con el detalle del pedido.
+    - Se envía un correo electrónico automático al equipo responsable con el CSV adjunto.
+    - Se muestra una pantalla de confirmación indicando si el correo fue enviado.
+
+    Si el correo no se envió, el pedido queda registrado igualmente. El aprobador puede verlo en el módulo de **Aprobaciones**.
+  </Step>
+</Steps>
+
+<Note>
+  Los pedidos **solo pueden realizarse en días específicos del mes**, configurados por zona comercial. Los PDVs Comerciales tienen un rango de días asignado por zona (por ejemplo, del 1 al 5 de cada mes). Los departamentos internos cuentan con su propia ventana, generalmente los primeros días del mes. Si intentas hacer un pedido fuera de la ventana, el sistema mostrará las fechas habilitadas para tu zona.
+</Note>
+
+## Autenticación
+
+El sistema admite dos modos de autenticación configurados mediante la variable de entorno `AUTH_MODE`:
+
+<CardGroup cols={2}>
+  <Card title="Modo local" icon="flask">
+    Usado en entornos de prueba y desarrollo. Las credenciales se validan contra la tabla `usuarios` de la base de datos. Las contraseñas se almacenan con hash bcrypt; los usuarios con contraseñas en texto plano son migrados automáticamente al iniciar sesión.
+  </Card>
+  <Card title="Modo LDAP" icon="building">
+    Usado en producción. Las credenciales se autentican contra el Active Directory corporativo de Farmcorp. El departamento del usuario se extrae del atributo LDAP y se sincroniza con la base de datos en cada inicio de sesión.
+  </Card>
+</CardGroup>
+
+El formulario de inicio de sesión detecta el departamento automáticamente al ingresar el nombre de usuario, rellenando el campo de forma automática antes de que el usuario envíe el formulario.
+
+## Arquitectura del sistema
+
+El sistema está compuesto por tres capas:
+
+<CardGroup cols={3}>
+  <Card title="supply-frontend" icon="browser">
+    Interfaz de usuario construida con **React** y **Vite**. Gestiona el flujo de pedidos, el carrito, el historial y el panel de aprobaciones.
+  </Card>
+  <Card title="supply-backend" icon="server">
+    API REST construida con **Node.js** y **Express**. Gestiona autenticación dual (local/LDAP), validaciones de negocio, recalculo de precios y envío de correos.
+  </Card>
+  <Card title="Base de datos" icon="database">
+    **MariaDB / MySQL**. Almacena usuarios, PDVs, suministros, pedidos, cupos y presupuestos. Los scripts SQL de inicialización se encuentran en el directorio `BASEDEDATOS/`.
+  </Card>
+</CardGroup>

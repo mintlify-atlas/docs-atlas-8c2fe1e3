@@ -1,0 +1,61 @@
+---
+title: "Nuevo pedido"
+description: "Cómo iniciar una solicitud de suministros desde el módulo de pedidos."
+---
+
+El módulo **Nuevo Pedido** permite a los usuarios de PDV y departamentos internos solicitar suministros de oficina y limpieza. El sistema identifica automáticamente el contexto del usuario y filtra el catálogo disponible.
+
+<Steps>
+  <Step title="Iniciar sesión e identificar el punto de venta">
+    Ingresa con tus credenciales corporativas. El sistema detecta tu rol y contexto automáticamente:
+
+    - **Usuarios Comercial (PDV):** el sistema asigna tu PDV con base en el nombre de usuario. Al ingresar al módulo verás los datos del punto de venta asignado:
+
+    | Campo | Descripción |
+    |-------|-------------|
+    | **PDV** | Código del punto de venta (código de centro de costo) |
+    | **Ciudad** | Ciudad donde se ubica el PDV |
+    | **Cupo disponible** | Monto máximo autorizado para el pedido actual |
+
+    - **Usuarios de departamento:** el departamento se detecta automáticamente desde la sesión. No es necesario seleccionar un PDV.
+
+    <Note>
+      Si no aparece un PDV asignado, contacta al administrador del sistema para vincular el PDV a tu usuario.
+    </Note>
+  </Step>
+
+  <Step title="Seleccionar el tipo de suministro">
+    Elige el tipo de suministro en el desplegable:
+
+    - **Suministros de Oficina** — artículos de papelería, impresión y escritorio
+    - **Suministros de Limpieza** — productos de aseo e higiene
+
+    El desplegable muestra únicamente los tipos que tienen al menos un suministro habilitado para tu PDV o departamento.
+  </Step>
+
+  <Step title="Buscar suministros">
+    Escribe en el campo de búsqueda el nombre del suministro o el nombre del proveedor. El sistema consulta el catálogo y muestra hasta **12 coincidencias**, cada una con:
+
+    - Nombre del suministro
+    - Precio unitario vigente
+
+    El precio proviene de la base de datos y corresponde al proveedor principal asignado al PDV (o al proveedor del mes en curso para departamentos).
+  </Step>
+
+  <Step title="Indicar la cantidad">
+    Junto al resultado de búsqueda, ingresa la cantidad deseada:
+
+    - **Mínimo:** 1 unidad
+    - **Máximo:** 10 unidades por ítem
+
+    El campo no acepta valores fuera de ese rango.
+  </Step>
+
+  <Step title="Agregar al carrito">
+    Haz clic en **+ Agregar** para incluir el ítem en el carrito. Puedes repetir los pasos 2 a 5 para agregar suministros de distintos tipos antes de enviar el pedido.
+  </Step>
+</Steps>
+
+<Note>
+  El sistema muestra exclusivamente los suministros habilitados para tu PDV o departamento. Los suministros que no estén asociados a tu contexto no aparecerán en los resultados de búsqueda y serán rechazados si se intentan enviar directamente.
+</Note>

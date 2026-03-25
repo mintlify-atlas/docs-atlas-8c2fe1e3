@@ -1,0 +1,460 @@
+---
+title: 'Orders (Pedidos)'
+description: 'Submit, retrieve, edit, approve, and reject supply orders.'
+---
+
+<Info>
+  All endpoints in this section require an active session. Requests without a valid `connect.sid` cookie return `401`.
+</Info>
+
+## POST /api/pedidos
+
+Registers a new supply order. All prices and totals are recalculated server-side from the database — values sent by the client are ignored.
+
+<Warning>
+  For users in the **Comercial** department, `pdvId` is required. For all other departments, omit `pdvId` and the order is attributed to the department budget.
+</Warning>
+
+### Validation rules
+
+The endpoint enforces the following rules before persisting an order:
+
+- The PDV (if Comercial) must exist and have `id_estado_pdv = 1` (active).
+- The current date must fall within the configured order window for the PDV's zone (Comercial) or the department's window (non-Comercial). Defaults to days 1–3 of the month for departments if not configured.
+- Each supply must be accessible by the PDV (via `v_suministros_efectivos_pdv`) or the department (via `departamento_suministros`).
+- Each item `cantidad` must be between 1 and 10 inclusive.
+- The total must not exceed the PDV's available quota (`cupo_disponible`) or the department's remaining budget.
+
+### Request body
+
+<ParamField body="pdvId" type="number">
+  ID of the Point of Sale. Required when the authenticated user belongs to the **Comercial** department. Omit for all other departments.
+</ParamField>
+
+<ParamField body="items" type="array" required>
+  List of supply items to order. Must contain at least one item.
+  <Expandable title="items properties">
+    <ParamField body="items[].suministroId" type="number" required>
+      ID of the supply (`suministros.id_suministro`).
+    </ParamField>
+    <ParamField body="items[].cantidad" type="number" required>
+      Quantity to order. Must be between 1 and 10.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean">
+  `true` when the order was persisted successfully.
+</ResponseField>
+
+<ResponseField name="pedidoId" type="number">
+  ID of the newly created order (`cabecera_pedidos.id_pedido`).
+</ResponseField>
+
+<ResponseField name="emailEnviado" type="boolean">
+  `true` if a notification email was sent. Depends on `MAIL_ENABLED=true` in the environment.
+</ResponseField>
+
+<ResponseField name="mensaje" type="string">
+  Human-readable confirmation. `"Su requerimiento ha sido enviado."` when email was sent; otherwise `"Pedido registrado correctamente."`
+</ResponseField>
+
+### Error responses
+
+| Status | Condition |
+|--------|-----------|
+| `400` | Missing or empty `items`, `pdvId` missing for Comercial, PDV inactive, outside order window, item quantity out of range, or total exceeds quota/budget |
+| `403` | A supply is not accessible for the PDV or department |
+
+### Example
+
+```bash cURL
+curl -X POST http://localhost:3001/api/pedidos \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{"pdvId": 12, "items": [{"suministroId": 5, "cantidad": 2}, {"suministroId": 8, "cantidad": 1}]}'
+```
+
+```json Response
+{
+  "success": true,
+  "pedidoId": 471,
+  "emailEnviado": true,
+  "mensaje": "Su requerimiento ha sido enviado."
+}
+```
+
+---
+
+## GET /api/pedidos/aprobaciones
+
+Returns a paginated list of orders for the approvals module.
+
+<Info>
+  This endpoint requires only an active session — it does not enforce the `APROBACION` permission at the server level. The frontend controls visibility based on the `permissions.aprobacion` flag returned at login. All authenticated users can technically call this endpoint; access control is applied in the UI.
+</Info>
+
+### Query parameters
+
+<ParamField query="search" type="string">
+  Filter by order ID (exact match), user full name, or login (partial match).
+</ParamField>
+
+<ParamField query="departamento" type="number">
+  Filter by department ID.
+</ParamField>
+
+<ParamField query="estado" type="number">
+  Filter by order status ID.
+</ParamField>
+
+<ParamField query="fechaDesde" type="string">
+  Start date filter (`YYYY-MM-DD`). Inclusive.
+</ParamField>
+
+<ParamField query="fechaHasta" type="string">
+  End date filter (`YYYY-MM-DD`). Inclusive.
+</ParamField>
+
+<ParamField query="page" type="number" default="1">
+  Page number (1-indexed).
+</ParamField>
+
+<ParamField query="limit" type="number" default="10">
+  Records per page.
+</ParamField>
+
+### Response
+
+<ResponseField name="data" type="array">
+  List of orders on the current page.
+  <Expandable title="data item properties">
+    <ResponseField name="id_pedido" type="number">
+      Order ID.
+    </ResponseField>
+    <ResponseField name="fecha_registro" type="string">
+      Timestamp the order was created.
+    </ResponseField>
+    <ResponseField name="usuario_nombre" type="string">
+      Full name of the user who placed the order.
+    </ResponseField>
+    <ResponseField name="usuario_login" type="string">
+      Login of the user who placed the order.
+    </ResponseField>
+    <ResponseField name="departamento" type="string">
+      Department name. Falls back to `"Sin departamento"` if unassigned.
+    </ResponseField>
+    <ResponseField name="estado" type="string">
+      Order status description (e.g., `"En espera"`, `"Aprobado"`, `"Rechazado"`).
+    </ResponseField>
+    <ResponseField name="total" type="number">
+      Sum of `cantidad × precio_unitario` across all items in the order.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="total" type="number">
+  Total number of orders matching the filters (used for pagination).
+</ResponseField>
+
+<ResponseField name="page" type="number">
+  Current page number.
+</ResponseField>
+
+<ResponseField name="limit" type="number">
+  Records per page.
+</ResponseField>
+
+<ResponseField name="totalPages" type="number">
+  Total number of pages.
+</ResponseField>
+
+### Example
+
+```bash cURL
+curl "http://localhost:3001/api/pedidos/aprobaciones?estado=1&page=1&limit=10" \
+  -b cookies.txt
+```
+
+```json Response
+{
+  "data": [
+    {
+      "id_pedido": 471,
+      "fecha_registro": "2026-03-01T14:32:00.000Z",
+      "usuario_nombre": "Juan Pérez",
+      "usuario_login": "jperez",
+      "departamento": "Ventas",
+      "estado": "En espera",
+      "total": 85.50
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "limit": 10,
+  "totalPages": 1
+}
+```
+
+---
+
+## GET /api/pedidos/:id
+
+Returns the full detail of a single order, including its header and all line items.
+
+### Path parameters
+
+<ParamField path="id" type="number" required>
+  Order ID (`cabecera_pedidos.id_pedido`).
+</ParamField>
+
+### Response
+
+<ResponseField name="id_pedido" type="number">Order ID.</ResponseField>
+<ResponseField name="fecha_registro" type="string">Timestamp the order was created.</ResponseField>
+<ResponseField name="usuario_nombre" type="string">Full name of the user who placed the order.</ResponseField>
+<ResponseField name="usuario_login" type="string">Login of the user who placed the order.</ResponseField>
+<ResponseField name="departamento" type="string">Department name.</ResponseField>
+<ResponseField name="estado" type="string">Order status description.</ResponseField>
+<ResponseField name="id_estado_pedido" type="number">Order status ID.</ResponseField>
+<ResponseField name="observaciones_aprobacion" type="string">Approver notes, if any.</ResponseField>
+<ResponseField name="motivo_rechazo" type="string">Rejection reason, if applicable.</ResponseField>
+
+<ResponseField name="items" type="array">
+  Line items for the order, sorted by supply type then supply name.
+  <Expandable title="item properties">
+    <ResponseField name="id_suministro" type="number">Supply ID.</ResponseField>
+    <ResponseField name="suministro" type="string">Supply name.</ResponseField>
+    <ResponseField name="tipo_suministro" type="string">Supply category name.</ResponseField>
+    <ResponseField name="cantidad" type="number">Ordered quantity.</ResponseField>
+    <ResponseField name="precio_unitario" type="number">Unit price at time of order.</ResponseField>
+    <ResponseField name="subtotal" type="number">`cantidad × precio_unitario`.</ResponseField>
+    <ResponseField name="proveedor" type="string">Supplier name. Falls back to `"Sin proveedor"` if not linked.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="total" type="number">
+  Sum of all item subtotals.
+</ResponseField>
+
+### Example
+
+```bash cURL
+curl http://localhost:3001/api/pedidos/471 \
+  -b cookies.txt
+```
+
+```json Response
+{
+  "id_pedido": 471,
+  "fecha_registro": "2026-03-01T14:32:00.000Z",
+  "usuario_nombre": "Juan Pérez",
+  "usuario_login": "jperez",
+  "departamento": "Ventas",
+  "estado": "En espera",
+  "id_estado_pedido": 1,
+  "observaciones_aprobacion": null,
+  "motivo_rechazo": null,
+  "items": [
+    {
+      "id_suministro": 5,
+      "suministro": "Papel A4",
+      "tipo_suministro": "Oficina",
+      "cantidad": 2,
+      "precio_unitario": 12.50,
+      "subtotal": 25.00,
+      "proveedor": "Distribuidora Norte"
+    }
+  ],
+  "total": 25.00
+}
+```
+
+---
+
+## PUT /api/pedidos/:id/items
+
+Updates the line items of a pending order. Can adjust quantities or remove existing items, but **cannot add supplies that were not in the original order**.
+
+<Warning>
+  Only orders in a pending state (status description contains `"pend"` or `"espera"`) can be edited. Approved or rejected orders are immutable.
+</Warning>
+
+### Path parameters
+
+<ParamField path="id" type="number" required>
+  Order ID.
+</ParamField>
+
+### Request body
+
+<ParamField body="items" type="array" required>
+  Updated item list. Must contain at least one item. Every `suministroId` must already exist in the order — new supplies cannot be added.
+  <Expandable title="items properties">
+    <ParamField body="items[].suministroId" type="number" required>
+      Supply ID. Must match an existing item in the order.
+    </ParamField>
+    <ParamField body="items[].cantidad" type="number" required>
+      Updated quantity. Must be a positive integer.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean">`true` on success.</ResponseField>
+<ResponseField name="message" type="string">`"Pedido actualizado correctamente"`.</ResponseField>
+<ResponseField name="pedido" type="object">
+  Full updated order object with the same structure as `GET /api/pedidos/:id`.
+</ResponseField>
+
+### Error responses
+
+| Status | Condition |
+|--------|-----------|
+| `400` | Empty items array, invalid item values, order is not pending, or attempting to add a new supply |
+| `404` | Order not found |
+
+### Example
+
+```bash cURL
+curl -X PUT http://localhost:3001/api/pedidos/471/items \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{"items": [{"suministroId": 5, "cantidad": 3}]}'
+```
+
+```json Response
+{
+  "success": true,
+  "message": "Pedido actualizado correctamente",
+  "pedido": {
+    "id_pedido": 471,
+    "estado": "En espera",
+    "items": [
+      {
+        "id_suministro": 5,
+        "suministro": "Papel A4",
+        "tipo_suministro": "Oficina",
+        "cantidad": 3,
+        "precio_unitario": 12.50,
+        "subtotal": 37.50,
+        "proveedor": "Distribuidora Norte"
+      }
+    ],
+    "total": 37.50
+  }
+}
+```
+
+---
+
+## POST /api/pedidos/:id/aprobar
+
+Approves an order by calling the stored procedure `sp_aprobar_pedido(id, userId, observaciones)`. Optionally accepts an edited item list to persist before approval.
+
+<Note>
+  Business rules for approval (stock validation, status transition) are handled entirely inside `sp_aprobar_pedido`. The API wrapper only handles item persistence and session context.
+</Note>
+
+### Path parameters
+
+<ParamField path="id" type="number" required>
+  Order ID to approve.
+</ParamField>
+
+### Request body
+
+<ParamField body="items" type="array">
+  Optional. If provided, replaces the order's items before approval is executed. Same rules as `PUT /api/pedidos/:id/items` apply — no new supplies can be added.
+  <Expandable title="items properties">
+    <ParamField body="items[].suministroId" type="number" required>Supply ID (must be in the existing order).</ParamField>
+    <ParamField body="items[].cantidad" type="number" required>Updated quantity (positive integer).</ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="observaciones" type="string">
+  Optional approval notes. Stored in `cabecera_pedidos.observaciones_aprobacion`.
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean">`true` on success.</ResponseField>
+<ResponseField name="message" type="string">e.g., `"Pedido #471 aprobado correctamente"`.</ResponseField>
+
+### Error responses
+
+| Status | Condition |
+|--------|-----------|
+| `400` | `items` array provided but empty, invalid items, or attempting to add a new supply |
+| `404` | Order not found |
+| `500` | Stored procedure error (e.g., stock validation failed) |
+
+### Example
+
+```bash cURL
+curl -X POST http://localhost:3001/api/pedidos/471/aprobar \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{"observaciones": "Aprobado con ajuste de cantidad."}'
+```
+
+```json Response
+{
+  "success": true,
+  "message": "Pedido #471 aprobado correctamente"
+}
+```
+
+---
+
+## POST /api/pedidos/:id/rechazar
+
+Rejects an order with a required reason. If the order was in a pending state, the consumed quota (PDV) or budget (department) is automatically restored.
+
+<Note>
+  Quota/budget restoration only applies to orders with `id_estado_pedido = 1` (pending). Restoring an already-approved order's budget is not supported through this endpoint.
+</Note>
+
+### Path parameters
+
+<ParamField path="id" type="number" required>
+  Order ID to reject.
+</ParamField>
+
+### Request body
+
+<ParamField body="motivo" type="string" required>
+  Reason for rejection. Cannot be blank. Stored in `cabecera_pedidos.motivo_rechazo`.
+</ParamField>
+
+### Response
+
+<ResponseField name="success" type="boolean">`true` on success.</ResponseField>
+<ResponseField name="message" type="string">e.g., `"Pedido #471 rechazado correctamente"`.</ResponseField>
+
+### Error responses
+
+| Status | Condition |
+|--------|-----------|
+| `400` | `motivo` is missing or blank |
+| `404` | Order not found |
+| `500` | No "Rechazado" status found in `estado_pedidos` table |
+
+### Example
+
+```bash cURL
+curl -X POST http://localhost:3001/api/pedidos/471/rechazar \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{"motivo": "El PDV ya fue abastecido por otro canal."}'
+```
+
+```json Response
+{
+  "success": true,
+  "message": "Pedido #471 rechazado correctamente"
+}
+```
